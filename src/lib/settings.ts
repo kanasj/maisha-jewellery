@@ -13,7 +13,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     const map = Object.fromEntries(data.map((r: { key: string; value: string }) => [r.key, r.value]))
     return {
       site_name: map.site_name ?? DEFAULT_SETTINGS.site_name,
-      heading_font: map.heading_font ?? DEFAULT_SETTINGS.heading_font,
+      heading_font: (map.heading_font ?? DEFAULT_SETTINGS.heading_font) as SiteSettings['heading_font'],
     }
   } catch {
     return DEFAULT_SETTINGS
