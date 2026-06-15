@@ -10,7 +10,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     const supabase = createClient()
     const { data } = await supabase.from('site_settings').select('key, value')
     if (!data?.length) return DEFAULT_SETTINGS
-    const map = Object.fromEntries(data.map((r: any) => [r.key, r.value]))
+    const map = Object.fromEntries(data.map((r: { key: string; value: string }) => [r.key, r.value]))
     return {
       site_name: map.site_name ?? DEFAULT_SETTINGS.site_name,
       heading_font: map.heading_font ?? DEFAULT_SETTINGS.heading_font,

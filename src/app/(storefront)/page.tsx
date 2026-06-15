@@ -13,7 +13,7 @@ export default async function HomePage() {
     supabase.from('site_settings').select('key, value').in('key', ['banner_1', 'banner_2', 'banner_3']),
   ])
 
-  const settingsMap = Object.fromEntries((settings ?? []).map((r: any) => [r.key, r.value]))
+  const settingsMap = Object.fromEntries((settings ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
   const banners = [
     settingsMap['banner_1'] ?? '',
     settingsMap['banner_2'] ?? '',

@@ -8,7 +8,7 @@ export default async function SettingsPage() {
     .from('site_settings')
     .select('key, value')
 
-  const map = Object.fromEntries((data ?? []).map((r: any) => [r.key, r.value]))
+  const map = Object.fromEntries((data ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
 
   const current = {
     site_name: map.site_name ?? DEFAULT_SETTINGS.site_name,
