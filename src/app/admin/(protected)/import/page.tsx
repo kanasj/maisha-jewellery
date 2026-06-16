@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
-import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, CheckCircle, AlertCircle, Loader2, Download } from 'lucide-react'
 
 interface Row {
   sku: string
@@ -42,20 +42,21 @@ export default function ImportPage() {
       const parsed: Row[] = json.map((r: Record<string, unknown>) => {
         const str = (v: unknown): string | undefined => (v != null ? String(v) : undefined)
         const row: Row = {
-          sku: String(r.sku ?? r.SKU ?? '').trim(),
-          name: String(r.name ?? r.Name ?? '').trim(),
-          description: str(r.description ?? r.Description),
-          metal_type: str(r.metal_type ?? r['Metal Type']),
-          metal_purity: str(r.metal_purity ?? r['Metal Purity']),
-          stone_type: str(r.stone_type ?? r['Stone Type']),
+          // Accept both template headers and raw field names
+          sku:            String(r.sku ?? r.SKU ?? '').trim(),
+          name:           String(r.name ?? r.Name ?? r['Product Name'] ?? '').trim(),
+          description:    str(r.description ?? r.Description),
+          metal_type:     str(r.metal_type ?? r['Metal Type']),
+          metal_purity:   str(r.metal_purity ?? r['Metal Purity']),
+          stone_type:     str(r.stone_type ?? r['Stone Type'] ?? r['Primary Stone']),
           stone_weight_ct: Number(r.stone_weight_ct ?? r['Stone Weight (ct)'] ?? 0) || undefined,
-          gross_weight_g: Number(r.gross_weight_g ?? r['Gross Weight (g)'] ?? 0) || undefined,
-          price_inr: Number(r.price_inr ?? r['Price (INR)'] ?? 0) || undefined,
-          mrp_inr: Number(r.mrp_inr ?? r['MRP (INR)'] ?? 0) || undefined,
-          stock_qty: Number(r.stock_qty ?? r['Stock Qty'] ?? 1),
-          tags: str(r.tags ?? r.Tags),
-          is_active: r.is_active !== undefined ? Boolean(r.is_active) : true,
-          is_featured: Boolean(r.is_featured ?? r['Is Featured']),
+          gross_weight_g:  Number(r.gross_weight_g  ?? r['Gross Weight (g)']  ?? 0) || undefined,
+          price_inr:       Number(r.price_inr ?? r['Price (INR)'] ?? r['Selling Price (INR)'] ?? 0) || undefined,
+          mrp_inr:         Number(r.mrp_inr   ?? r['MRP (INR)']  ?? 0) || undefined,
+          stock_qty:       Number(r.stock_qty  ?? r['Stock Qty']  ?? 1),
+          tags:            str(r.tags ?? r.Tags),
+          is_active:       r.is_active !== undefined ? Boolean(r.is_active) : true,
+          is_featured:     Boolean(r.is_featured ?? r['Is Featured']),
           _valid: true,
         }
         if (!row.sku) { row._valid = false; row._error = 'Missing SKU' }
@@ -97,10 +98,19 @@ export default function ImportPage() {
 
   return (
     <div>
-      <h1 className="font-cormorant text-3xl mb-2">Bulk Import</h1>
+      <div className="flex items-start justify-between mb-2">
+        <h1 className="font-cormorant text-3xl">Bulk Import</h1>
+        <a
+          href="/kanas-inventory-template.xlsx"
+          download
+          className="flex items-center gap-2 border border-[#B8973A] text-[#B8973A] text-xs tracking-widest uppercase px-5 py-2.5 hover:bg-[#B8973A] hover:text-white transition-colors"
+        >
+          <Download size={13} />
+          Download Template
+        </a>
+      </div>
       <p className="text-sm text-gray-500 mb-8">
-        Upload an Excel file (.xlsx) with product data. Required columns: <strong>sku</strong>, <strong>name</strong>.
-        Optional: description, metal_type, metal_purity, stone_type, stone_weight_ct, gross_weight_g, price_inr, mrp_inr, stock_qty, tags.
+        Use the template above to prepare your data. Required columns: <strong>SKU</strong>, <strong>Product Name</strong>. Upload the filled file below.
       </p>
 
       {!rows.length && (
