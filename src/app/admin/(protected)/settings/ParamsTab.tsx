@@ -171,7 +171,7 @@ export default function ParamsTab() {
       ) : params.length === 0 && !showForm ? (
         <div className="border-2 border-dashed border-gray-200 rounded-lg py-12 text-center">
           <p className="text-sm text-gray-400">No custom fields yet.</p>
-          <p className="text-xs text-gray-300 mt-1">Add fields like "Occasion", "Ring Size", "Hallmark", etc.</p>
+          <p className="text-xs text-gray-300 mt-1">Add fields like &quot;Occasion&quot;, &quot;Ring Size&quot;, &quot;Hallmark&quot;, etc.</p>
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
