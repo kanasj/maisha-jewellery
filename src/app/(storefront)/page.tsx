@@ -48,9 +48,9 @@ export default async function HomePage() {
                 href={`/shop?category=${cat.slug}`}
                 className="group relative aspect-[3/4] bg-[#F0EBE3] overflow-hidden flex items-end justify-center pb-6"
               >
-                {catImageMap[cat.id] && (
+                {(cat.image_url || catImageMap[cat.id]) && (
                   <Image
-                    src={catImageMap[cat.id]}
+                    src={cat.image_url || catImageMap[cat.id]}
                     alt={cat.name}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-700"
