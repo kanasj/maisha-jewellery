@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import ProductCard from '@/components/ProductCard'
 import HeroBanner from '@/components/HeroBanner'
@@ -7,11 +8,21 @@ import type { Product, Category } from '@/lib/types'
 export default async function HomePage() {
   const supabase = createClient()
 
-  const [{ data: categories }, { data: featured }, { data: settings }] = await Promise.all([
+  const [{ data: categories }, { data: featured }, { data: settings }, { data: catProducts }] = await Promise.all([
     supabase.from('categories').select('*').is('parent_id', null).order('name'),
     supabase.from('products').select('*, categories(name, slug)').eq('is_active', true).eq('is_featured', true).limit(8),
     supabase.from('site_settings').select('key, value').in('key', ['banner_1', 'banner_2', 'banner_3']),
+    // One product per category to use as category cover image
+    supabase.from('products').select('category_id, images').eq('is_active', true).neq('images', '{}').limit(500),
   ])
+
+  // Build map: category_id → first image
+  const catImageMap: Record<string, string> = {}
+  for (const p of (catProducts ?? [])) {
+    if (p.category_id && p.images?.[0] && !catImageMap[p.category_id]) {
+      catImageMap[p.category_id] = p.images[0]
+    }
+  }
 
   const settingsMap = Object.fromEntries((settings ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
   const banners = [
@@ -37,6 +48,15 @@ export default async function HomePage() {
                 href={`/shop?category=${cat.slug}`}
                 className="group relative aspect-[3/4] bg-[#F0EBE3] overflow-hidden flex items-end justify-center pb-6"
               >
+                {catImageMap[cat.id] && (
+                  <Image
+                    src={catImageMap[cat.id]}
+                    alt={cat.name}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-700"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1A1714]/60 to-transparent" />
                 <p className="relative z-10 font-cormorant text-xl text-white group-hover:text-[#B8973A] transition-colors">
                   {cat.name}
