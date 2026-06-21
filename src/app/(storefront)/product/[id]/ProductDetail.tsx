@@ -8,7 +8,21 @@ import { MessageCircle } from 'lucide-react'
 
 type ProductWithCategory = Product & { categories?: Pick<Category, 'name' | 'slug'> | null }
 
-export default function ProductDetail({ product, productParams }: { product: ProductWithCategory; productParams: ProductParam[] }) {
+interface BuiltinVisibility {
+  show_metal: boolean
+  show_stone: boolean
+  show_gross_weight: boolean
+}
+
+export default function ProductDetail({
+  product,
+  productParams,
+  builtinVisibility,
+}: {
+  product: ProductWithCategory
+  productParams: ProductParam[]
+  builtinVisibility: BuiltinVisibility
+}) {
   const [activeImg, setActiveImg] = useState(0)
   const images = product.images?.length ? product.images : []
   const enquiryMsg = `Hi! I'm interested in *${product.name}* (SKU: ${product.sku}). Could you please share more details?`
@@ -74,25 +88,20 @@ export default function ProductDetail({ product, productParams }: { product: Pro
 
           {/* Specs */}
           <div className="border-t border-[#E8E0D5] pt-6 mb-8 space-y-3">
-            {product.metal_type && (
+            {builtinVisibility.show_metal && product.metal_type && (
               <SpecRow label="Metal" value={`${product.metal_type}${product.metal_purity ? ` (${product.metal_purity})` : ''}`} />
             )}
-            {product.stone_type && (
+            {builtinVisibility.show_stone && product.stone_type && (
               <SpecRow label="Stone" value={`${product.stone_type}${product.stone_weight_ct ? ` — ${product.stone_weight_ct} ct` : ''}`} />
             )}
-            {product.gross_weight_g && (
+            {builtinVisibility.show_gross_weight && product.gross_weight_g && (
               <SpecRow label="Gross Weight" value={`${product.gross_weight_g} g`} />
             )}
-            {/* Custom fields */}
-            {productParams.map((p) => {
+            {/* Custom fields — only visible ones */}
+            {productParams.filter((p) => p.visible_on_storefront).map((p) => {
               const val = product.custom_fields?.[p.name]
               if (val === undefined || val === null || val === '') return null
-              let display: string
-              if (p.field_type === 'toggle') {
-                display = val ? 'Yes' : 'No'
-              } else {
-                display = String(val)
-              }
+              const display = p.field_type === 'toggle' ? (val ? 'Yes' : 'No') : String(val)
               return <SpecRow key={p.id} label={p.label} value={display} />
             })}
           </div>

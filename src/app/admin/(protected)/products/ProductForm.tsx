@@ -155,7 +155,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="SKU *" error={errors.sku?.message}>
           <input {...register('sku')} className={inputCls} />
         </Field>
@@ -175,7 +175,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </select>
       </Field>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Metal Type">
           <select {...register('metal_type')} className={inputCls}>
             <option value="">— Select —</option>
@@ -193,7 +193,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </Field>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Field label="Gross Weight (g)">
           <input {...register('gross_weight_g')} type="number" step="0.01" min="0" className={inputCls} />
         </Field>
@@ -205,7 +205,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Stock Qty">
           <input {...register('stock_qty')} type="number" min="0" className={inputCls} />
         </Field>
@@ -231,7 +231,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
           <p className="text-xs tracking-widest uppercase text-gray-500 mb-4 pb-2 border-b border-gray-100">
             Custom Fields
           </p>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {params.map((p) => (
               <div key={p.id} className={p.field_type === 'textarea' ? 'col-span-2' : ''}>
                 <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">

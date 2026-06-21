@@ -98,7 +98,7 @@ export default function ImportPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
         <h1 className="font-cormorant text-3xl">Bulk Import</h1>
         <a
           href="/kanas-inventory-template.xlsx"

@@ -53,7 +53,7 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
     <div className="max-w-lg">
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <p className="text-xs tracking-widest uppercase text-gray-500 mb-4">Add Category</p>
-        <div className="flex gap-3 mb-3">
+        <div className="flex flex-col sm:flex-row gap-3 mb-3">
           <input
             value={newName}
             onChange={(e) => { setNewName(e.target.value); setNewSlug(slugify(e.target.value)) }}

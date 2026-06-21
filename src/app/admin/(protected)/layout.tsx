@@ -8,9 +8,12 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   if (!user) redirect('/admin/login')
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">{children}</main>
+      {/* pt-14 reserves space for mobile top bar; md:ml-56 offsets for desktop sidebar */}
+      <div className="md:ml-56 pt-14 md:pt-0">
+        <main className="p-4 sm:p-8">{children}</main>
+      </div>
     </div>
   )
 }

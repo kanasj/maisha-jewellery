@@ -38,6 +38,15 @@ export interface ProductParam {
   field_type: FieldType
   options: string[] | null
   is_required: boolean
+  visible_on_storefront: boolean
   sort_order: number
   created_at: string
 }
+
+export const BUILTIN_SPEC_FIELDS = [
+  { key: 'show_metal',        label: 'Metal Type & Purity' },
+  { key: 'show_stone',        label: 'Stone Type & Weight' },
+  { key: 'show_gross_weight', label: 'Gross Weight (g)' },
+] as const
+
+export type BuiltinFieldKey = typeof BUILTIN_SPEC_FIELDS[number]['key']

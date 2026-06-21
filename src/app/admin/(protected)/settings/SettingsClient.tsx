@@ -74,9 +74,9 @@ export default function SettingsClient({ current }: Props) {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl w-full">
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-8">
+      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto">
         {([['general', 'General'], ['banners', 'Hero Banners'], ['params', 'Custom Fields']] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
