@@ -24,6 +24,20 @@ export interface Product {
   images: string[]
   tags: string[]
   is_featured: boolean
+  custom_fields: Record<string, unknown>
   created_at: string
   categories?: Category
+}
+
+export type FieldType = 'text' | 'number' | 'textarea' | 'select' | 'toggle' | 'date'
+
+export interface ProductParam {
+  id: string
+  name: string
+  label: string
+  field_type: FieldType
+  options: string[] | null
+  is_required: boolean
+  sort_order: number
+  created_at: string
 }

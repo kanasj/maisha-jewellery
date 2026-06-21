@@ -3,12 +3,12 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { buildWhatsAppUrl, formatPrice, WHATSAPP_NUMBER } from '@/lib/utils'
-import type { Product, Category } from '@/lib/types'
+import type { Product, Category, ProductParam } from '@/lib/types'
 import { MessageCircle } from 'lucide-react'
 
 type ProductWithCategory = Product & { categories?: Pick<Category, 'name' | 'slug'> | null }
 
-export default function ProductDetail({ product }: { product: ProductWithCategory }) {
+export default function ProductDetail({ product, productParams }: { product: ProductWithCategory; productParams: ProductParam[] }) {
   const [activeImg, setActiveImg] = useState(0)
   const images = product.images?.length ? product.images : []
   const enquiryMsg = `Hi! I'm interested in *${product.name}* (SKU: ${product.sku}). Could you please share more details?`
@@ -83,6 +83,18 @@ export default function ProductDetail({ product }: { product: ProductWithCategor
             {product.gross_weight_g && (
               <SpecRow label="Gross Weight" value={`${product.gross_weight_g} g`} />
             )}
+            {/* Custom fields */}
+            {productParams.map((p) => {
+              const val = product.custom_fields?.[p.name]
+              if (val === undefined || val === null || val === '') return null
+              let display: string
+              if (p.field_type === 'toggle') {
+                display = val ? 'Yes' : 'No'
+              } else {
+                display = String(val)
+              }
+              return <SpecRow key={p.id} label={p.label} value={display} />
+            })}
           </div>
 
           <a

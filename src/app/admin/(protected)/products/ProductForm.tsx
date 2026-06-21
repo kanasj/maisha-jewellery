@@ -1,11 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
-import type { Category } from '@/lib/types'
+import type { Category, ProductParam } from '@/lib/types'
 import { Upload, X, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -60,6 +60,18 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [params, setParams] = useState<ProductParam[]>([])
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>(
+    (initialData?.custom_fields as Record<string, unknown>) ?? {}
+  )
+
+  useEffect(() => {
+    supabase
+      .from('product_params')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .then(({ data }) => setParams((data as ProductParam[]) ?? []))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,6 +109,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
       category_id: values.category_id || null,
       tags: values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       images,
+      custom_fields: customFields,
     }
     const { error: err } = productId
       ? await supabase.from('products').update(payload).eq('id', productId)
@@ -211,6 +224,80 @@ export default function ProductForm({ categories, initialData, productId }: Prop
           Featured on homepage
         </label>
       </div>
+
+      {/* Custom Fields */}
+      {params.length > 0 && (
+        <div>
+          <p className="text-xs tracking-widest uppercase text-gray-500 mb-4 pb-2 border-b border-gray-100">
+            Custom Fields
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            {params.map((p) => (
+              <div key={p.id} className={p.field_type === 'textarea' ? 'col-span-2' : ''}>
+                <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">
+                  {p.label}{p.is_required && <span className="text-red-400 ml-1">*</span>}
+                </label>
+                {p.field_type === 'text' && (
+                  <input
+                    type="text"
+                    value={String(customFields[p.name] ?? '')}
+                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                    className={inputCls}
+                  />
+                )}
+                {p.field_type === 'number' && (
+                  <input
+                    type="number"
+                    step="any"
+                    value={String(customFields[p.name] ?? '')}
+                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    className={inputCls}
+                  />
+                )}
+                {p.field_type === 'textarea' && (
+                  <textarea
+                    rows={3}
+                    value={String(customFields[p.name] ?? '')}
+                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                    className={inputCls}
+                  />
+                )}
+                {p.field_type === 'select' && (
+                  <select
+                    value={String(customFields[p.name] ?? '')}
+                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                    className={inputCls}
+                  >
+                    <option value="">— Select —</option>
+                    {(p.options ?? []).map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                )}
+                {p.field_type === 'toggle' && (
+                  <label className="flex items-center gap-2 cursor-pointer select-none mt-1">
+                    <div
+                      onClick={() => setCustomFields((prev) => ({ ...prev, [p.name]: !prev[p.name] }))}
+                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${customFields[p.name] ? 'bg-[#B8973A]' : 'bg-gray-200'}`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${customFields[p.name] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </div>
+                    <span className="text-sm text-gray-600">{customFields[p.name] ? 'Yes' : 'No'}</span>
+                  </label>
+                )}
+                {p.field_type === 'date' && (
+                  <input
+                    type="date"
+                    value={String(customFields[p.name] ?? '')}
+                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                    className={inputCls}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-4">
         <button

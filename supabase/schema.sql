@@ -32,13 +32,27 @@ create table if not exists products (
   created_at timestamptz default now()
 );
 
+-- Custom product parameter definitions
+create table if not exists product_params (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null unique,
+  label text not null,
+  field_type text not null default 'text',
+  options text[],
+  is_required boolean not null default false,
+  sort_order integer not null default 0,
+  created_at timestamptz default now()
+);
+
 -- Row Level Security
 alter table products enable row level security;
 alter table categories enable row level security;
+alter table product_params enable row level security;
 
 -- Public read access (storefront)
 create policy "Public read products" on products for select using (true);
 create policy "Public read categories" on categories for select using (true);
+create policy "Public read product_params" on product_params for select using (true);
 
 -- Authenticated write access (admin)
 create policy "Auth insert products" on products for insert with check (auth.role() = 'authenticated');
@@ -47,3 +61,4 @@ create policy "Auth delete products" on products for delete using (auth.role() =
 create policy "Auth insert categories" on categories for insert with check (auth.role() = 'authenticated');
 create policy "Auth update categories" on categories for update using (auth.role() = 'authenticated');
 create policy "Auth delete categories" on categories for delete using (auth.role() = 'authenticated');
+create policy "Auth write product_params" on product_params for all using (auth.role() = 'authenticated');
