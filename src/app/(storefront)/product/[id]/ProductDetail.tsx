@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { buildWhatsAppUrl, formatPrice, WHATSAPP_NUMBER } from '@/lib/utils'
 import type { Product, Category, ProductParam } from '@/lib/types'
 import { MessageCircle } from 'lucide-react'
+import StorefrontBackButton from '@/components/StorefrontBackButton'
 
 type ProductWithCategory = Product & { categories?: Pick<Category, 'name' | 'slug'> | null }
 
@@ -29,6 +30,10 @@ export default function ProductDetail({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+      <div className="mb-6">
+        <StorefrontBackButton />
+      </div>
+
       {/* Breadcrumb */}
       <p className="text-xs tracking-widest uppercase text-[#1A1714]/40 mb-8">
         <Link href="/" className="hover:text-[#B8973A] transition-colors">Home</Link>

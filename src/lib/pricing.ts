@@ -42,8 +42,9 @@ export function buildPricingParams(
 // ─── Product fields needed for calculation ────────────────────────────────────
 export interface PricingFields {
   metal_type?: string
-  metal_purity?: string     // "18K", "22K", "24K", "14K" etc.
+  metal_purity?: string       // "18K", "22K", "24K", "14K" etc.
   gross_weight_g?: number | string
+  stone_weight_ct?: number | string  // standard field = diamond weight for gold formula
   custom_fields: Record<string, unknown>
 }
 
@@ -76,12 +77,14 @@ function n(v: unknown): number {
 // + Gold Pirai Weight × (Gold Pirai Karat/24) × Gold Rate
 // + Pirai Amount
 
-function calcGold(cf: Record<string, unknown>, purity: number, p: PricingParams): number {
+function calcGold(cf: Record<string, unknown>, purity: number, p: PricingParams, stoneWeightCt?: number | string): number {
   const netWt = n(cf.net_weight_gm)
 
   const metal   = netWt * (purity / 24) * p.gold_rate
   const labour  = netWt * p.labour_per_gm
-  const diamond = n(cf.diamond_weight_ct) * p.diamond_rate
+  // diamond weight: use standard stone_weight_ct field first, fall back to custom field
+  const diamondWt = n(stoneWeightCt) || n(cf.diamond_weight_ct)
+  const diamond = diamondWt * p.diamond_rate
   const polki   =
     n(cf.polki_weight_10_14) * p.polki_weight_10_14 +
     n(cf.polki_weight_14_18) * p.polki_weight_14_18 +
@@ -124,7 +127,7 @@ export function calcPrice(fields: PricingFields, params: PricingParams): number 
   if (type === 'gold' || type === 'rose gold') {
     const karat = parseKarat(fields.metal_purity)
     if (karat === 0) return null   // purity not set — can't calculate
-    return calcGold(cf, karat, params)
+    return calcGold(cf, karat, params, fields.stone_weight_ct)
   }
 
   if (type === 'silver') {

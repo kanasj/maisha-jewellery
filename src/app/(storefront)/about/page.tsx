@@ -1,7 +1,12 @@
+import StorefrontBackButton from '@/components/StorefrontBackButton'
+
 export default function AboutPage() {
   return (
     <div>
-      <div className="bg-[#1A1714] py-32 text-center">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8">
+        <StorefrontBackButton />
+      </div>
+      <div className="bg-[#1A1714] py-32 text-center mt-4">
         <p className="text-xs tracking-[0.4em] uppercase text-[#B8973A] mb-4">Our Story</p>
         <h1 className="font-cormorant text-6xl font-light text-white">About Us</h1>
       </div>

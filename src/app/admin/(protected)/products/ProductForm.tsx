@@ -148,9 +148,10 @@ export default function ProductForm({ categories, initialData, productId }: Prop
       : { stock_qty: 1, is_active: true, is_featured: false },
   })
 
-  const watchedMetalType   = watch('metal_type')
-  const watchedMetalPurity = watch('metal_purity')
-  const watchedGrossWeight = watch('gross_weight_g')
+  const watchedMetalType    = watch('metal_type')
+  const watchedMetalPurity  = watch('metal_purity')
+  const watchedGrossWeight  = watch('gross_weight_g')
+  const watchedStoneWeight  = watch('stone_weight_ct')
 
   // Track whether the next price change comes from user input vs auto-fill
   const autoFillingRef = useRef(false)
@@ -187,10 +188,11 @@ export default function ProductForm({ categories, initialData, productId }: Prop
     if (!paramsLoaded) return
 
     const fields = {
-      metal_type:    watchedMetalType,
-      metal_purity:  watchedMetalPurity,
-      gross_weight_g: watchedGrossWeight ? Number(watchedGrossWeight) : undefined,
-      custom_fields: customFields,
+      metal_type:     watchedMetalType,
+      metal_purity:   watchedMetalPurity,
+      gross_weight_g: watchedGrossWeight  ? Number(watchedGrossWeight)  : undefined,
+      stone_weight_ct: watchedStoneWeight ? Number(watchedStoneWeight) : undefined,
+      custom_fields:  customFields,
     }
 
     autoFillingRef.current = true
@@ -210,7 +212,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
 
     // Small delay so state updates complete before resetting the flag
     setTimeout(() => { autoFillingRef.current = false }, 50)
-  }, [watchedMetalType, watchedMetalPurity, watchedGrossWeight, customFields, paramsLoaded, ogParams, spParams, ogOverridden, spOverridden]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [watchedMetalType, watchedMetalPurity, watchedGrossWeight, watchedStoneWeight, customFields, paramsLoaded, ogParams, spParams, ogOverridden, spOverridden]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Recalculate helpers ───────────────────────────────────────────────────────
   function recalcOg() {
@@ -333,7 +335,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         <Field label="Stone Type">
           <input {...register('stone_type')} placeholder="e.g. Diamond, Ruby" className={inputCls} />
         </Field>
-        <Field label="Stone Weight (ct)">
+        <Field label="Diamond Weight (ct)">
           <input {...register('stone_weight_ct')} type="number" step="0.01" min="0" className={inputCls} />
         </Field>
         <Field label="Gross Weight (g)">
