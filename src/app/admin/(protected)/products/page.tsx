@@ -20,7 +20,8 @@ export default async function AdminProductsPage() {
           + Add Product
         </Link>
       </div>
-      <ProductsTable initialProducts={products ?? []} />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <ProductsTable initialProducts={(products ?? []) as any} />
     </div>
   )
 }
