@@ -14,6 +14,7 @@ const schema = z.object({
   sku:            z.string().min(1, 'SKU is required'),
   name:           z.string().min(1, 'Name is required'),
   description:    z.string().optional(),
+  category_id:    z.string().optional(),
   metal_type:     z.string().optional(),
   metal_purity:   z.string().optional(),
   stone_weight_ct:z.coerce.number().optional(),
@@ -125,23 +126,6 @@ export default function ProductForm({ categories, initialData, productId }: Prop
     (initialData?.custom_fields as Record<string, unknown>) ?? {}
   )
 
-  // ── Category + Sub-category (managed outside RHF) ────────────────────────────
-  const parentCategories = categories.filter((c) => !c.parent_id)
-  const childCategories  = categories.filter((c) => !!c.parent_id)
-
-  function resolveInitialCategory(catId: unknown) {
-    if (!catId) return { parentId: '', subId: '' }
-    const cat = categories.find((c) => c.id === catId)
-    if (!cat) return { parentId: '', subId: '' }
-    if (cat.parent_id) return { parentId: cat.parent_id, subId: cat.id }
-    return { parentId: cat.id, subId: '' }
-  }
-
-  const { parentId: initParent, subId: initSub } = resolveInitialCategory(initialData?.category_id)
-  const [parentCatId, setParentCatId] = useState(initParent)
-  const [subCatId, setSubCatId]       = useState(initSub)
-
-  const subCatsOfParent = childCategories.filter((c) => c.parent_id === parentCatId)
 
   // ── Pricing state (managed outside RHF for auto-calc control) ───────────────
   const [ogPrice, setOgPrice]   = useState<string>(String(initialData?.og_price_inr ?? ''))
@@ -270,7 +254,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
     setError('')
     const payload = {
       ...values,
-      category_id:              subCatId || parentCatId || null,
+      category_id:              values.category_id || null,
       tags:                     values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       images,
       custom_fields:            customFields,
@@ -331,14 +315,10 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         <textarea {...register('description')} rows={4} className={inputCls} />
       </Field>
 
-      <Field label="Jewellery Category">
-        <select
-          value={parentCatId}
-          onChange={(e) => { setParentCatId(e.target.value); setSubCatId('') }}
-          className={inputCls}
-        >
+      <Field label="Category">
+        <select {...register('category_id')} className={inputCls}>
           <option value="">— None —</option>
-          {parentCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </Field>
 
@@ -352,24 +332,6 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         <Field label="Metal Purity">
           <input {...register('metal_purity')} placeholder="e.g. 22K, 18K, 92.5%" className={inputCls} />
         </Field>
-
-        {/* Sub-category always shown after Metal — only populated when parent has children */}
-        <div className="sm:col-span-2">
-          <Field label="Jewellery Sub Category">
-            <select
-              value={subCatId}
-              onChange={(e) => setSubCatId(e.target.value)}
-              className={inputCls}
-              disabled={subCatsOfParent.length === 0}
-            >
-              <option value="">
-                {subCatsOfParent.length === 0 ? '— No sub-categories for selected category —' : '— None —'}
-              </option>
-              {subCatsOfParent.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-        </div>
-
         <Field label="Diamond Weight (ct)">
           <input {...register('stone_weight_ct')} type="number" step="0.01" min="0" className={inputCls} />
         </Field>

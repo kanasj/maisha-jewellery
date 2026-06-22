@@ -96,14 +96,19 @@ export default function ProductDetail({
             {builtinVisibility.show_metal && product.metal_type && (
               <SpecRow label="Metal" value={`${product.metal_type}${product.metal_purity ? ` (${product.metal_purity})` : ''}`} />
             )}
+            {/* Jewellery Sub Category custom field — pinned right after Metal */}
+            {productParams.filter((p) => p.visible_on_storefront && p.name === 'jewellery_sub_category').map((p) => {
+              const val = product.custom_fields?.[p.name]
+              return val ? <SpecRow key={p.id} label={p.label} value={String(val)} /> : null
+            })}
             {builtinVisibility.show_stone && product.stone_weight_ct && (
               <SpecRow label="Diamond Weight" value={`${product.stone_weight_ct} ct`} />
             )}
             {builtinVisibility.show_gross_weight && product.gross_weight_g && (
               <SpecRow label="Gross Weight" value={`${product.gross_weight_g} g`} />
             )}
-            {/* Custom fields — only visible ones */}
-            {productParams.filter((p) => p.visible_on_storefront).map((p) => {
+            {/* All other custom fields (except jewellery_sub_category already shown above) */}
+            {productParams.filter((p) => p.visible_on_storefront && p.name !== 'jewellery_sub_category').map((p) => {
               const val = product.custom_fields?.[p.name]
               if (val === undefined || val === null || val === '') return null
               const display = p.field_type === 'toggle' ? (val ? 'Yes' : 'No') : String(val)
