@@ -102,10 +102,10 @@ export default function ShopClient({ products, categories }: Props) {
               </select>
             </div>
 
-            {/* Sub-category — only shown when a parent has children */}
+            {/* Jewellery Sub Category — only shown when a parent has children */}
             {subCategoriesOf.length > 0 && (
               <div>
-                <label className="text-xs tracking-widest uppercase text-[#1A1714]/50 block mb-1">Sub-category</label>
+                <label className="text-xs tracking-widest uppercase text-[#1A1714]/50 block mb-1">Jewellery Sub Category</label>
                 <select
                   value={subCategory}
                   onChange={(e) => setSubCategory(e.target.value)}
