@@ -48,7 +48,6 @@ function ProductThumb({ product }: { product: AdminProduct }) {
 
 export default function ProductsTable({ initialProducts }: { initialProducts: AdminProduct[] }) {
   const [products, setProducts]       = useState(initialProducts)
-  const [search, setSearch]           = useState('')
   const [stockTab, setStockTab]       = useState<'in' | 'out'>('in')
   const [filterField, setFilterField] = useState('')
   const [filterValue, setFilterValue] = useState('')
@@ -76,35 +75,30 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
     activeFieldDef?.options === 'dynamic_jsc'      ? jscOptions :
     (activeFieldDef?.options as string[] | null) ?? null
 
-  const inStockCount  = products.filter(isInStock).length
-  const outStockCount = products.filter((p) => !isInStock(p)).length
+  // Matches the field filter only (no stock check) — used for tab counts
+  function matchesFieldFilter(p: AdminProduct): boolean {
+    if (!filterField || !filterValue) return true
+    const q = filterValue.toLowerCase()
+    if (filterField === 'name'                   && !p.name.toLowerCase().includes(q))                                                         return false
+    if (filterField === 'sku'                    && !p.sku.toLowerCase().includes(q))                                                          return false
+    if (filterField === 'category'               && !(p.categories?.name ?? '').toLowerCase().includes(q))                                     return false
+    if (filterField === 'metal_type'             && !(p.metal_type   ?? '').toLowerCase().includes(q))                                         return false
+    if (filterField === 'metal_purity'           && !(p.metal_purity ?? '').toLowerCase().includes(q))                                         return false
+    if (filterField === 'jewellery_sub_category' && String((p.custom_fields ?? {})['jewellery_sub_category'] ?? '').toLowerCase() !== q)       return false
+    return true
+  }
+
+  const inStockCount  = products.filter((p) =>  isInStock(p) && matchesFieldFilter(p)).length
+  const outStockCount = products.filter((p) => !isInStock(p) && matchesFieldFilter(p)).length
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
-      // Stock tab
       if (stockTab === 'in'  && !isInStock(p)) return false
       if (stockTab === 'out' &&  isInStock(p)) return false
-
-      // Name/SKU search
-      if (search) {
-        const q = search.toLowerCase()
-        if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false
-      }
-
-      // Dynamic field filter
-      if (filterField && filterValue) {
-        const q = filterValue.toLowerCase()
-        if (filterField === 'name'         && !p.name.toLowerCase().includes(q))                    return false
-        if (filterField === 'sku'          && !p.sku.toLowerCase().includes(q))                     return false
-        if (filterField === 'category'     && !(p.categories?.name ?? '').toLowerCase().includes(q)) return false
-        if (filterField === 'metal_type'              && !(p.metal_type   ?? '').toLowerCase().includes(q)) return false
-        if (filterField === 'metal_purity'            && !(p.metal_purity ?? '').toLowerCase().includes(q)) return false
-        if (filterField === 'jewellery_sub_category'  && String((p.custom_fields ?? {})['jewellery_sub_category'] ?? '').toLowerCase() !== q) return false
-      }
-
+      if (!matchesFieldFilter(p)) return false
       return true
     })
-  }, [products, stockTab, search, filterField, filterValue])
+  }, [products, stockTab, filterField, filterValue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function deleteProduct(id: string) {
     if (!confirm('Delete this product? This cannot be undone.')) return
@@ -181,16 +175,8 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
         </button>
       </div>
 
-      {/* ── Search + Filter + Download ── */}
+      {/* ── Filter + Download ── */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <input
-          type="search"
-          placeholder="Search by name or SKU…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-0 max-w-xs border border-gray-200 px-4 py-2 text-sm focus:outline-none focus:border-[#B8973A]"
-        />
-
         {/* Dynamic field filter */}
         <select
           value={filterField}
