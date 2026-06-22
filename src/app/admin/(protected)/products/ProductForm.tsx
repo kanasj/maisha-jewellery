@@ -332,9 +332,6 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         <Field label="Metal Purity">
           <input {...register('metal_purity')} placeholder="e.g. 22K, 18K, 92.5%" className={inputCls} />
         </Field>
-        <Field label="Stone Type">
-          <input {...register('stone_type')} placeholder="e.g. Diamond, Ruby" className={inputCls} />
-        </Field>
         <Field label="Diamond Weight (ct)">
           <input {...register('stone_weight_ct')} type="number" step="0.01" min="0" className={inputCls} />
         </Field>

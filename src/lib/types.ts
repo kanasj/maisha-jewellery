@@ -49,7 +49,7 @@ export interface ProductParam {
 
 export const BUILTIN_SPEC_FIELDS = [
   { key: 'show_metal',        label: 'Metal Type & Purity' },
-  { key: 'show_stone',        label: 'Stone Type & Weight' },
+  { key: 'show_stone',        label: 'Diamond Weight (ct)' },
   { key: 'show_gross_weight', label: 'Gross Weight (g)' },
 ] as const
 

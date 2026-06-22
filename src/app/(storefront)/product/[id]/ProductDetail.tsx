@@ -96,8 +96,8 @@ export default function ProductDetail({
             {builtinVisibility.show_metal && product.metal_type && (
               <SpecRow label="Metal" value={`${product.metal_type}${product.metal_purity ? ` (${product.metal_purity})` : ''}`} />
             )}
-            {builtinVisibility.show_stone && product.stone_type && (
-              <SpecRow label="Stone" value={`${product.stone_type}${product.stone_weight_ct ? ` — ${product.stone_weight_ct} ct` : ''}`} />
+            {builtinVisibility.show_stone && product.stone_weight_ct && (
+              <SpecRow label="Diamond Weight" value={`${product.stone_weight_ct} ct`} />
             )}
             {builtinVisibility.show_gross_weight && product.gross_weight_g && (
               <SpecRow label="Gross Weight" value={`${product.gross_weight_g} g`} />
