@@ -329,8 +329,13 @@ export default function ProductForm({ categories, initialData, productId }: Prop
             {['Gold', 'Silver', 'Platinum', 'Rose Gold'].map((m) => <option key={m}>{m}</option>)}
           </select>
         </Field>
-        <Field label="Metal Purity">
-          <input {...register('metal_purity')} placeholder="e.g. 22K, 18K, 92.5%" className={inputCls} />
+        <Field label="Metal Purity (K)">
+          <select {...register('metal_purity')} className={inputCls}>
+            <option value="">— Select —</option>
+            {['9', '14', '18', '22', '24'].map((k) => (
+              <option key={k} value={k}>{k}K</option>
+            ))}
+          </select>
         </Field>
         <Field label="Diamond Weight (ct)">
           <input {...register('stone_weight_ct')} type="number" step="0.01" min="0" className={inputCls} />
