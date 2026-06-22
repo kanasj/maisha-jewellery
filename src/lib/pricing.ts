@@ -100,10 +100,10 @@ function calcGold(cf: Record<string, unknown>, purity: number, p: PricingParams,
   const moissanite  = moissaniteWt * p.mosannite_rate
 
   const blackDiamond = (n(cf.black_diamond_weight_ct) || n(cf.black_diamond)) * p.black_diamond_rate
-  const stonelabour  = n(cf.total_stone_weight_g) * p.stone_labour
+  const stonelabour  = n(cf.stone_weight_g) * p.stone_labour
 
-  const piraiKarat  = n(cf.gold_pirai_karat)
-  const piraiWt     = n(cf.gold_pirai_weight)
+  const piraiKarat  = n(cf.gold_pirai_purity_k)
+  const piraiWt     = n(cf.gold_pirai_weight_g)
   const pirai       = piraiWt * (piraiKarat / 24) * p.gold_rate
   const piraiAmount = n(cf.pirai_amount)
 
