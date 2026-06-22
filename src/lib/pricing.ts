@@ -100,6 +100,7 @@ function calcGold(cf: Record<string, unknown>, purity: number, p: PricingParams,
   const moissaniteWt = n(cf.moissanite_weight) || n(cf.mosannite_weight)
   const moissanite  = moissaniteWt * p.mosannite_rate
 
+  const cvd        = n(cf.cvd_weight_ct) * p.cvd_rate
   const blackDiamond = (n(cf.black_diamond_weight_ct) || n(cf.black_diamond)) * p.black_diamond_rate
   const stonelabour  = n(cf.stone_weight_g) * p.stone_labour
 
@@ -108,7 +109,7 @@ function calcGold(cf: Record<string, unknown>, purity: number, p: PricingParams,
   const pirai       = piraiWt * (piraiKarat / 24) * p.gold_rate
   const piraiAmount = n(cf.pirai_amount)
 
-  return Math.round(metal + labour + diamond + polki + moissanite + blackDiamond + stonelabour + pirai + piraiAmount)
+  return Math.round(metal + labour + diamond + cvd + polki + moissanite + blackDiamond + stonelabour + pirai + piraiAmount)
 }
 
 // ─── Silver formula ───────────────────────────────────────────────────────────
