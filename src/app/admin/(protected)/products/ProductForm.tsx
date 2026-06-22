@@ -272,11 +272,106 @@ export default function ProductForm({ categories, initialData, productId }: Prop
     else { router.push('/admin/products'); router.refresh() }
   }
 
+  // ── Custom field rendering helper ────────────────────────────────────────────
+  // Renders a single custom field input by its machine name
+  function renderCustomFieldInput(p: ProductParam) {
+    if (p.field_type === 'text') {
+      return (
+        <input
+          type="text"
+          value={String(customFields[p.name] ?? '')}
+          onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+          className={inputCls}
+        />
+      )
+    }
+    if (p.field_type === 'number') {
+      return (
+        <input
+          type="number"
+          step="any"
+          value={String(customFields[p.name] ?? '')}
+          onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value === '' ? '' : Number(e.target.value) }))}
+          className={inputCls}
+        />
+      )
+    }
+    if (p.field_type === 'textarea') {
+      return (
+        <textarea
+          rows={3}
+          value={String(customFields[p.name] ?? '')}
+          onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+          className={inputCls}
+        />
+      )
+    }
+    if (p.field_type === 'select') {
+      return (
+        <select
+          value={String(customFields[p.name] ?? '')}
+          onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+          className={inputCls}
+        >
+          <option value="">— Select —</option>
+          {(p.options ?? []).map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      )
+    }
+    if (p.field_type === 'toggle') {
+      return (
+        <label className="flex items-center gap-2 cursor-pointer select-none mt-1">
+          <div
+            onClick={() => setCustomFields((prev) => ({ ...prev, [p.name]: !prev[p.name] }))}
+            className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${customFields[p.name] ? 'bg-[#B8973A]' : 'bg-gray-200'}`}
+          >
+            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${customFields[p.name] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </div>
+          <span className="text-sm text-gray-600">{customFields[p.name] ? 'Yes' : 'No'}</span>
+        </label>
+      )
+    }
+    if (p.field_type === 'date') {
+      return (
+        <input
+          type="date"
+          value={String(customFields[p.name] ?? '')}
+          onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
+          className={inputCls}
+        />
+      )
+    }
+    return null
+  }
+
+  // Fields pinned at the top (rendered inline, excluded from the main custom fields loop)
+  const PINNED_TOP = ['jewellery_sub_category', 'net_weight_gm', 'polki_weight_ct', 'cvd_weight_ct', 'stone_details']
+  const pinnedMap  = Object.fromEntries(
+    params.filter((p) => PINNED_TOP.includes(p.name)).map((p) => [p.name, p])
+  )
+  const remainingParams = params.filter((p) => !PINNED_TOP.includes(p.name))
+
+  // Helper to render a pinned field as a grid cell (returns null if param not defined yet)
+  function PinnedField({ name }: { name: string }) {
+    const p = pinnedMap[name]
+    if (!p) return null
+    return (
+      <div className={p.field_type === 'textarea' ? 'col-span-2' : ''}>
+        <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">
+          {p.label}{p.is_required && <span className="text-red-400 ml-1">*</span>}
+        </label>
+        {renderCustomFieldInput(p)}
+      </div>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-8">
       {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded border border-red-100">{error}</p>}
 
-      {/* Images */}
+      {/* ── Images ── */}
       <div>
         <label className="text-xs tracking-widest uppercase text-gray-500 block mb-3">Images</label>
         <div className="flex flex-wrap gap-3">
@@ -302,33 +397,33 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </div>
       </div>
 
+      {/* ── TOP: SKU, Category, pinned custom fields, metal fields, weights ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* SKU */}
         <Field label="SKU *" error={errors.sku?.message}>
           <input {...register('sku')} className={inputCls} />
         </Field>
-        <Field label="Name *" error={errors.name?.message}>
-          <input {...register('name')} className={inputCls} />
+
+        {/* Category */}
+        <Field label="Category">
+          <select {...register('category_id')} className={inputCls}>
+            <option value="">— None —</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
         </Field>
-      </div>
 
-      <Field label="Description">
-        <textarea {...register('description')} rows={4} className={inputCls} />
-      </Field>
+        {/* Jewellery Sub Category (pinned custom field) */}
+        <PinnedField name="jewellery_sub_category" />
 
-      <Field label="Category">
-        <select {...register('category_id')} className={inputCls}>
-          <option value="">— None —</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </Field>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Metal Type */}
         <Field label="Metal Type">
           <select {...register('metal_type')} className={inputCls}>
             <option value="">— Select —</option>
             {['Gold', 'Silver', 'Platinum', 'Rose Gold'].map((m) => <option key={m}>{m}</option>)}
           </select>
         </Field>
+
+        {/* Metal Purity */}
         <Field label="Metal Purity (K)">
           <select {...register('metal_purity')} className={inputCls}>
             <option value="">— Select —</option>
@@ -337,12 +432,67 @@ export default function ProductForm({ categories, initialData, productId }: Prop
             ))}
           </select>
         </Field>
-        <Field label="Diamond Weight (ct)">
-          <input {...register('stone_weight_ct')} type="number" step="0.01" min="0" className={inputCls} />
-        </Field>
+
+        {/* Gross Weight */}
         <Field label="Gross Weight (g)">
-          <input {...register('gross_weight_g')} type="number" step="0.01" min="0" className={inputCls} />
+          <input {...register('gross_weight_g')} type="number" step="any" min="0" className={inputCls} />
         </Field>
+
+        {/* Net Weight (pinned custom field) */}
+        <PinnedField name="net_weight_gm" />
+
+        {/* Polki Weight (pinned custom field) */}
+        <PinnedField name="polki_weight_ct" />
+
+        {/* Stone Weight (ct) — built-in */}
+        <Field label="Stone Weight (ct)">
+          <input {...register('stone_weight_ct')} type="number" step="any" min="0" className={inputCls} />
+        </Field>
+
+        {/* CVD Weight (pinned custom field) */}
+        <PinnedField name="cvd_weight_ct" />
+
+        {/* Stone Details (pinned custom field) */}
+        <PinnedField name="stone_details" />
+      </div>
+
+      {/* Remaining custom fields (not pinned at top) */}
+      {remainingParams.length > 0 && (
+        <div>
+          <p className="text-xs tracking-widest uppercase text-gray-500 mb-4 pb-2 border-b border-gray-100">
+            Custom Fields
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {remainingParams.map((p) => (
+              <div key={p.id} className={p.field_type === 'textarea' ? 'col-span-2' : ''}>
+                <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">
+                  {p.label}{p.is_required && <span className="text-red-400 ml-1">*</span>}
+                </label>
+                {renderCustomFieldInput(p)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Stock Qty">
+          <input {...register('stock_qty')} type="number" min="0" className={inputCls} />
+        </Field>
+        <Field label="Tags (comma separated)">
+          <input {...register('tags')} placeholder="bridal, gift, trending" className={inputCls} />
+        </Field>
+      </div>
+
+      <div className="flex gap-6">
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input type="checkbox" {...register('is_active')} className="accent-[#B8973A] w-4 h-4" />
+          Active (visible on store)
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input type="checkbox" {...register('is_featured')} className="accent-[#B8973A] w-4 h-4" />
+          Featured on homepage
+        </label>
       </div>
 
       {/* ── Pricing Section ────────────────────────────────────────────────────── */}
@@ -417,99 +567,14 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Stock Qty">
-          <input {...register('stock_qty')} type="number" min="0" className={inputCls} />
-        </Field>
-        <Field label="Tags (comma separated)">
-          <input {...register('tags')} placeholder="bridal, gift, trending" className={inputCls} />
-        </Field>
-      </div>
+      {/* ── BOTTOM: Name, Description, buttons ── */}
+      <Field label="Name *" error={errors.name?.message}>
+        <input {...register('name')} className={inputCls} />
+      </Field>
 
-      <div className="flex gap-6">
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input type="checkbox" {...register('is_active')} className="accent-[#B8973A] w-4 h-4" />
-          Active (visible on store)
-        </label>
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input type="checkbox" {...register('is_featured')} className="accent-[#B8973A] w-4 h-4" />
-          Featured on homepage
-        </label>
-      </div>
-
-      {/* Custom Fields */}
-      {params.length > 0 && (
-        <div>
-          <p className="text-xs tracking-widest uppercase text-gray-500 mb-4 pb-2 border-b border-gray-100">
-            Custom Fields
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {params.map((p) => (
-              <div key={p.id} className={p.field_type === 'textarea' ? 'col-span-2' : ''}>
-                <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">
-                  {p.label}{p.is_required && <span className="text-red-400 ml-1">*</span>}
-                </label>
-                {p.field_type === 'text' && (
-                  <input
-                    type="text"
-                    value={String(customFields[p.name] ?? '')}
-                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
-                    className={inputCls}
-                  />
-                )}
-                {p.field_type === 'number' && (
-                  <input
-                    type="number"
-                    step="any"
-                    value={String(customFields[p.name] ?? '')}
-                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value === '' ? '' : Number(e.target.value) }))}
-                    className={inputCls}
-                  />
-                )}
-                {p.field_type === 'textarea' && (
-                  <textarea
-                    rows={3}
-                    value={String(customFields[p.name] ?? '')}
-                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
-                    className={inputCls}
-                  />
-                )}
-                {p.field_type === 'select' && (
-                  <select
-                    value={String(customFields[p.name] ?? '')}
-                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
-                    className={inputCls}
-                  >
-                    <option value="">— Select —</option>
-                    {(p.options ?? []).map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                )}
-                {p.field_type === 'toggle' && (
-                  <label className="flex items-center gap-2 cursor-pointer select-none mt-1">
-                    <div
-                      onClick={() => setCustomFields((prev) => ({ ...prev, [p.name]: !prev[p.name] }))}
-                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${customFields[p.name] ? 'bg-[#B8973A]' : 'bg-gray-200'}`}
-                    >
-                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${customFields[p.name] ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </div>
-                    <span className="text-sm text-gray-600">{customFields[p.name] ? 'Yes' : 'No'}</span>
-                  </label>
-                )}
-                {p.field_type === 'date' && (
-                  <input
-                    type="date"
-                    value={String(customFields[p.name] ?? '')}
-                    onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
-                    className={inputCls}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <Field label="Description">
+        <textarea {...register('description')} rows={4} className={inputCls} />
+      </Field>
 
       <div className="flex gap-4">
         <button

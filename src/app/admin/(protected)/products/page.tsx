@@ -6,7 +6,7 @@ export default async function AdminProductsPage() {
   const supabase = createClient()
   const { data: products } = await supabase
     .from('products')
-    .select('*, categories(name)')
+    .select('id, name, sku, images, price_inr, is_active, stock_qty, metal_type, metal_purity, custom_fields, categories(name)')
     .order('created_at', { ascending: false })
 
   return (
