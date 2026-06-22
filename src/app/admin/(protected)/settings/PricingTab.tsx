@@ -12,6 +12,7 @@ const PARAM_GROUPS = [
       { label: 'Gold Rate (24K)',    key: 'gold_rate',          unit: '₹/gm' },
       { label: 'Silver Rate',        key: 'silver_rate',        unit: '₹/gm' },
       { label: 'Diamond Rate',       key: 'diamond_rate',       unit: '₹/ct' },
+      { label: 'CVD Rate',           key: 'cvd_rate',           unit: '₹/ct' },
       { label: 'Mosannite Rate',     key: 'mosannite_rate',     unit: '₹/ct' },
       { label: 'Black Diamond Rate', key: 'black_diamond_rate', unit: '₹/ct' },
     ],
@@ -46,6 +47,7 @@ const DEFAULTS: Record<string, string> = {
   gold_rate:             '15500',
   silver_rate:           '260',
   diamond_rate:          '15000',
+  cvd_rate:              '7500',
   mosannite_rate:        '500',
   black_diamond_rate:    '5000',
   labour_per_gm:         '850',
@@ -59,6 +61,11 @@ const DEFAULTS: Record<string, string> = {
   polki_weight_28_32:    '11500',
   polki_weight_32_42:    '20000',
   polki_weight_42_50:    '20000',
+}
+
+// Default multipliers (used when no saved value exists)
+const MULT_DEFAULTS: Record<string, string> = {
+  cvd_rate: '2',
 }
 
 const ALL_KEYS = PARAM_GROUPS.flatMap((g) => g.params.map((p) => p.key))
@@ -98,9 +105,10 @@ export default function PricingTab() {
           if (row.key.startsWith('og_'))   ogMap[row.key.slice(3)]   = row.value
           if (row.key.startsWith('mult_')) multMap[row.key.slice(5)] = row.value
         }
-        // Seed defaults for any og key that has no saved value
+        // Seed defaults for any og/mult key that has no saved value
         for (const k of ALL_KEYS) {
-          if (!ogMap[k] && DEFAULTS[k]) ogMap[k] = DEFAULTS[k]
+          if (!ogMap[k]   && DEFAULTS[k])      ogMap[k]   = DEFAULTS[k]
+          if (!multMap[k] && MULT_DEFAULTS[k]) multMap[k] = MULT_DEFAULTS[k]
         }
         setOg(ogMap)
         setMult(multMap)

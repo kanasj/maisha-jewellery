@@ -3,6 +3,7 @@ export const PRICING_PARAM_KEYS = [
   'gold_rate',
   'silver_rate',
   'diamond_rate',
+  'cvd_rate',
   'mosannite_rate',
   'black_diamond_rate',
   'labour_per_gm',
