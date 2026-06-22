@@ -18,8 +18,11 @@ export interface Product {
   stone_type: string | null
   stone_weight_ct: number | null
   gross_weight_g: number | null
+  og_price_inr: number | null
   price_inr: number | null
   mrp_inr: number | null
+  price_overridden: boolean
+  selling_price_overridden: boolean
   stock_qty: number
   is_active: boolean
   images: string[]

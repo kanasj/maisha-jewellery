@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { AVAILABLE_FONTS, getFontUrl, type AvailableFont } from '@/lib/settings-shared'
 import { Loader2, CheckCircle, Upload, X, ImageIcon } from 'lucide-react'
 import ParamsTab from './ParamsTab'
+import PricingTab from './PricingTab'
 
 interface Props {
   current: {
@@ -16,7 +17,7 @@ interface Props {
   }
 }
 
-type Tab = 'general' | 'banners' | 'params'
+type Tab = 'general' | 'banners' | 'params' | 'pricing'
 
 export default function SettingsClient({ current }: Props) {
   const [tab, setTab] = useState<Tab>('general')
@@ -77,7 +78,7 @@ export default function SettingsClient({ current }: Props) {
     <div className="max-w-2xl w-full">
       {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-8 overflow-x-auto">
-        {([['general', 'General'], ['banners', 'Hero Banners'], ['params', 'Custom Fields']] as [Tab, string][]).map(([key, label]) => (
+        {([['general', 'General'], ['banners', 'Hero Banners'], ['params', 'Custom Fields'], ['pricing', 'Pricing Params']] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -218,8 +219,11 @@ export default function SettingsClient({ current }: Props) {
       {/* Custom Fields Tab */}
       {tab === 'params' && <ParamsTab />}
 
+      {/* Pricing Params Tab */}
+      {tab === 'pricing' && <PricingTab />}
+
       {/* Save button — only for general/banners tabs */}
-      <div className={`flex items-center gap-4 mt-8 ${tab === 'params' ? 'hidden' : ''}`}>
+      <div className={`flex items-center gap-4 mt-8 ${tab === 'params' || tab === 'pricing' ? 'hidden' : ''}`}>
         <button
           onClick={save}
           disabled={saving || uploading !== null}

@@ -2,9 +2,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Download, Loader2 } from 'lucide-react'
 
 interface AdminProduct {
   id: string
@@ -29,8 +30,9 @@ function ProductThumb({ product }: { product: AdminProduct }) {
 }
 
 export default function ProductsTable({ initialProducts }: { initialProducts: AdminProduct[] }) {
-  const [products, setProducts] = useState(initialProducts)
-  const [search, setSearch] = useState('')
+  const [products, setProducts]   = useState(initialProducts)
+  const [search, setSearch]       = useState('')
+  const [downloading, setDownloading] = useState(false)
   const supabase = createClient()
 
   const filtered = products.filter((p) =>
@@ -44,15 +46,91 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
     setProducts((prev) => prev.filter((p) => p.id !== id))
   }
 
+  async function downloadExcel() {
+    setDownloading(true)
+    try {
+      // Fetch all products with full data (not just the subset loaded for the table)
+      const { data } = await supabase
+        .from('products')
+        .select('*, categories(name)')
+        .order('created_at', { ascending: false })
+
+      const allProducts = data ?? []
+
+      // Collect all custom field keys across all products so every row has the same columns
+      const customKeys = Array.from(
+        new Set(allProducts.flatMap((p) => Object.keys((p.custom_fields as Record<string, unknown>) ?? {})))
+      ).sort()
+
+      const rows = allProducts.map((p) => {
+        const base: Record<string, unknown> = {
+          'SKU':               p.sku,
+          'Product Name':      p.name,
+          'Description':       p.description ?? '',
+          'Category':          (p.categories as { name?: string } | null)?.name ?? '',
+          'Metal Type':        p.metal_type   ?? '',
+          'Metal Purity':      p.metal_purity ?? '',
+          'Stone Type':        p.stone_type   ?? '',
+          'Stone Weight (ct)': p.stone_weight_ct ?? '',
+          'Gross Weight (g)':  p.gross_weight_g  ?? '',
+          'Price (INR)':       p.price_inr    ?? '',
+          'MRP (INR)':         p.mrp_inr      ?? '',
+          'Stock Qty':         p.stock_qty    ?? '',
+          'Tags':              Array.isArray(p.tags) ? (p.tags as string[]).join(', ') : '',
+          'Is Active':         p.is_active   ? 'TRUE' : 'FALSE',
+          'Is Featured':       p.is_featured ? 'TRUE' : 'FALSE',
+          'Product Image':     Array.isArray(p.images) ? (p.images as string[]).join(', ') : '',
+        }
+
+        // Append custom fields as individual columns
+        const cf = (p.custom_fields as Record<string, unknown>) ?? {}
+        for (const key of customKeys) {
+          base[key] = cf[key] ?? ''
+        }
+
+        return base
+      })
+
+      const ws = XLSX.utils.json_to_sheet(rows)
+
+      // Auto-width columns
+      const colWidths = Object.keys(rows[0] ?? {}).map((key) => ({
+        wch: Math.max(key.length, ...rows.map((r) => String(r[key] ?? '').length), 10),
+      }))
+      ws['!cols'] = colWidths
+
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Products')
+
+      const date = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(wb, `maisha-products-${date}.xlsx`)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div>
-      <input
-        type="search"
-        placeholder="Search by name or SKU…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full max-w-sm border border-gray-200 px-4 py-2 text-sm mb-6 focus:outline-none focus:border-[#B8973A]"
-      />
+      {/* ── Search + Download ── */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <input
+          type="search"
+          placeholder="Search by name or SKU…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 min-w-0 max-w-sm border border-gray-200 px-4 py-2 text-sm focus:outline-none focus:border-[#B8973A]"
+        />
+        <button
+          onClick={downloadExcel}
+          disabled={downloading}
+          className="flex items-center gap-2 border border-[#B8973A] text-[#B8973A] text-xs tracking-widest uppercase px-5 py-2.5 hover:bg-[#B8973A] hover:text-white transition-colors disabled:opacity-50"
+        >
+          {downloading
+            ? <Loader2 size={13} className="animate-spin" />
+            : <Download size={13} />}
+          {downloading ? 'Exporting…' : 'Download Excel'}
+        </button>
+      </div>
 
       {/* ── Mobile card list ── */}
       <div className="sm:hidden space-y-3">

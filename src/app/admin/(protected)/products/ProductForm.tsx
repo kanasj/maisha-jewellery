@@ -1,30 +1,29 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, ProductParam } from '@/lib/types'
-import { Upload, X, Loader2 } from 'lucide-react'
+import { calcPrice, buildPricingParams, PRICING_PARAM_KEYS, type PricingParams } from '@/lib/pricing'
+import { Upload, X, Loader2, RefreshCw, AlertTriangle, Zap } from 'lucide-react'
 import Image from 'next/image'
 
 const schema = z.object({
-  sku: z.string().min(1, 'SKU is required'),
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  category_id: z.string().optional(),
-  metal_type: z.string().optional(),
-  metal_purity: z.string().optional(),
-  stone_type: z.string().optional(),
-  stone_weight_ct: z.coerce.number().optional(),
+  sku:            z.string().min(1, 'SKU is required'),
+  name:           z.string().min(1, 'Name is required'),
+  description:    z.string().optional(),
+  category_id:    z.string().optional(),
+  metal_type:     z.string().optional(),
+  metal_purity:   z.string().optional(),
+  stone_type:     z.string().optional(),
+  stone_weight_ct:z.coerce.number().optional(),
   gross_weight_g: z.coerce.number().optional(),
-  price_inr: z.coerce.number().optional(),
-  mrp_inr: z.coerce.number().optional(),
-  stock_qty: z.coerce.number().optional(),
-  is_active: z.boolean().optional(),
-  is_featured: z.boolean().optional(),
-  tags: z.string().optional(),
+  stock_qty:      z.coerce.number().optional(),
+  is_active:      z.boolean().optional(),
+  is_featured:    z.boolean().optional(),
+  tags:           z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -53,18 +52,110 @@ function Field({ label, children, error }: { label: string; children: React.Reac
   )
 }
 
+// ─── Price field with override indicator ─────────────────────────────────────
+function PriceField({
+  label,
+  value,
+  overridden,
+  autoSupported,
+  onChange,
+  onRecalc,
+  hint,
+}: {
+  label: string
+  value: string
+  overridden: boolean
+  autoSupported: boolean
+  onChange: (v: string) => void
+  onRecalc: () => void
+  hint?: string
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs tracking-widest uppercase text-gray-500">{label}</label>
+        {autoSupported && (
+          overridden ? (
+            <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+              <AlertTriangle size={9} /> Overridden
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] text-green-600 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded">
+              <Zap size={9} /> Auto
+            </span>
+          )
+        )}
+      </div>
+      <div className="relative">
+        <input
+          type="number"
+          min="0"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0"
+          className={`${inputCls} pr-8 ${overridden ? 'border-amber-300 bg-amber-50/30' : ''}`}
+        />
+        {overridden && autoSupported && (
+          <button
+            type="button"
+            onClick={onRecalc}
+            title="Recalculate"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#B8973A] transition-colors"
+          >
+            <RefreshCw size={13} />
+          </button>
+        )}
+      </div>
+      {hint && <p className="text-[10px] text-gray-400 mt-1">{hint}</p>}
+    </div>
+  )
+}
+
 export default function ProductForm({ categories, initialData, productId }: Props) {
-  const router = useRouter()
+  const router  = useRouter()
   const supabase = createClient()
-  const [images, setImages] = useState<string[]>(initialData?.images ?? ([] as string[]))
+
+  // ── Images ──────────────────────────────────────────────────────────────────
+  const [images, setImages]     = useState<string[]>(initialData?.images ?? [])
   const [uploading, setUploading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [params, setParams] = useState<ProductParam[]>([])
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+
+  // ── Custom fields ───────────────────────────────────────────────────────────
+  const [params, setParams]         = useState<ProductParam[]>([])
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(
     (initialData?.custom_fields as Record<string, unknown>) ?? {}
   )
 
+  // ── Pricing state (managed outside RHF for auto-calc control) ───────────────
+  const [ogPrice, setOgPrice]   = useState<string>(String(initialData?.og_price_inr ?? ''))
+  const [spPrice, setSpPrice]   = useState<string>(String(initialData?.price_inr   ?? ''))
+  const [mrp, setMrp]           = useState<string>(String(initialData?.mrp_inr     ?? ''))
+
+  const [ogOverridden, setOgOverridden] = useState<boolean>(Boolean(initialData?.price_overridden))
+  const [spOverridden, setSpOverridden] = useState<boolean>(Boolean(initialData?.selling_price_overridden))
+
+  const [ogParams, setOgParams]   = useState<PricingParams | null>(null)
+  const [spParams, setSpParams]   = useState<PricingParams | null>(null)
+  const [paramsLoaded, setParamsLoaded] = useState(false)
+
+  // ── RHF ─────────────────────────────────────────────────────────────────────
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema) as any,
+    defaultValues: initialData
+      ? ({ ...initialData, tags: Array.isArray(initialData.tags) ? initialData.tags.join(', ') : '' } as Partial<FormValues>)
+      : { stock_qty: 1, is_active: true, is_featured: false },
+  })
+
+  const watchedMetalType   = watch('metal_type')
+  const watchedMetalPurity = watch('metal_purity')
+  const watchedGrossWeight = watch('gross_weight_g')
+
+  // Track whether the next price change comes from user input vs auto-fill
+  const autoFillingRef = useRef(false)
+
+  // ── Load product_params ──────────────────────────────────────────────────────
   useEffect(() => {
     supabase
       .from('product_params')
@@ -73,18 +164,72 @@ export default function ProductForm({ categories, initialData, productId }: Prop
       .then(({ data }) => setParams((data as ProductParam[]) ?? []))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(schema) as any,
-    defaultValues: initialData
-      ? ({ ...initialData, tags: Array.isArray(initialData.tags) ? initialData.tags.join(', ') : '' } as Partial<FormValues>)
-      : { stock_qty: 1, is_active: true, is_featured: false },
-  })
+  // ── Load pricing params from site_settings ───────────────────────────────────
+  useEffect(() => {
+    const keys = [
+      ...PRICING_PARAM_KEYS.map((k) => `og_${k}`),
+      ...PRICING_PARAM_KEYS.map((k) => `sp_${k}`),
+    ]
+    supabase
+      .from('site_settings')
+      .select('key, value')
+      .in('key', keys)
+      .then(({ data }) => {
+        const rows = (data ?? []) as { key: string; value: string }[]
+        setOgParams(buildPricingParams(rows, 'og'))
+        setSpParams(buildPricingParams(rows, 'sp'))
+        setParamsLoaded(true)
+      })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Auto-calculate prices whenever inputs change ──────────────────────────────
+  useEffect(() => {
+    if (!paramsLoaded) return
+
+    const fields = {
+      metal_type:    watchedMetalType,
+      metal_purity:  watchedMetalPurity,
+      gross_weight_g: watchedGrossWeight ? Number(watchedGrossWeight) : undefined,
+      custom_fields: customFields,
+    }
+
+    autoFillingRef.current = true
+
+    if (!ogOverridden && ogParams) {
+      const computed = calcPrice(fields, ogParams)
+      if (computed !== null) setOgPrice(String(computed))
+    }
+
+    if (!spOverridden && spParams) {
+      const computed = calcPrice(fields, spParams)
+      if (computed !== null) {
+        setSpPrice(String(computed))
+        setMrp(String(Math.round(computed * 2.5)))
+      }
+    }
+
+    // Small delay so state updates complete before resetting the flag
+    setTimeout(() => { autoFillingRef.current = false }, 50)
+  }, [watchedMetalType, watchedMetalPurity, watchedGrossWeight, customFields, paramsLoaded, ogParams, spParams, ogOverridden, spOverridden]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Recalculate helpers ───────────────────────────────────────────────────────
+  function recalcOg() {
+    setOgOverridden(false)
+  }
+  function recalcSp() {
+    setSpOverridden(false)
+    // MRP follows SP automatically so no separate reset needed
+  }
+
+  // ── Whether auto-calc is possible for the current metal type ─────────────────
+  const metalTypeLower = (watchedMetalType ?? '').toLowerCase()
+  const autoSupported  = metalTypeLower === 'gold' || metalTypeLower === 'silver' || metalTypeLower === 'rose gold'
+
+  // ── Image upload ─────────────────────────────────────────────────────────────
   async function uploadImage(file: File): Promise<string> {
     const formData = new FormData()
     formData.append('file', file)
-    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const res  = await fetch('/api/upload', { method: 'POST', body: formData })
     const data = await res.json()
     return data.url as string
   }
@@ -101,27 +246,28 @@ export default function ProductForm({ categories, initialData, productId }: Prop
     }
   }
 
+  // ── Submit ────────────────────────────────────────────────────────────────────
   async function onSubmit(values: FormValues) {
     setSaving(true)
     setError('')
     const payload = {
       ...values,
-      category_id: values.category_id || null,
-      tags: values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+      category_id:              values.category_id || null,
+      tags:                     values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       images,
-      custom_fields: customFields,
+      custom_fields:            customFields,
+      og_price_inr:             ogPrice  ? Number(ogPrice)  : null,
+      price_inr:                spPrice  ? Number(spPrice)  : null,
+      mrp_inr:                  mrp      ? Number(mrp)      : null,
+      price_overridden:         ogOverridden,
+      selling_price_overridden: spOverridden,
     }
     const { error: err } = productId
       ? await supabase.from('products').update(payload).eq('id', productId)
       : await supabase.from('products').insert(payload)
 
-    if (err) {
-      setError(err.message)
-      setSaving(false)
-    } else {
-      router.push('/admin/products')
-      router.refresh()
-    }
+    if (err) { setError(err.message); setSaving(false) }
+    else { router.push('/admin/products'); router.refresh() }
   }
 
   return (
@@ -147,8 +293,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
           <label className="w-24 h-24 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:border-[#B8973A] transition-colors rounded">
             {uploading
               ? <Loader2 size={20} className="animate-spin text-gray-400" />
-              : <Upload size={20} className="text-gray-400" />
-            }
+              : <Upload size={20} className="text-gray-400" />}
             <span className="text-xs text-gray-400 mt-1">Upload</span>
             <input type="file" multiple accept="image/*" onChange={handleFiles} className="hidden" disabled={uploading} />
           </label>
@@ -183,7 +328,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
           </select>
         </Field>
         <Field label="Metal Purity">
-          <input {...register('metal_purity')} placeholder="e.g. 22K, 92.5%" className={inputCls} />
+          <input {...register('metal_purity')} placeholder="e.g. 22K, 18K, 92.5%" className={inputCls} />
         </Field>
         <Field label="Stone Type">
           <input {...register('stone_type')} placeholder="e.g. Diamond, Ruby" className={inputCls} />
@@ -191,18 +336,81 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         <Field label="Stone Weight (ct)">
           <input {...register('stone_weight_ct')} type="number" step="0.01" min="0" className={inputCls} />
         </Field>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Field label="Gross Weight (g)">
           <input {...register('gross_weight_g')} type="number" step="0.01" min="0" className={inputCls} />
         </Field>
-        <Field label="Price (₹)">
-          <input {...register('price_inr')} type="number" min="0" className={inputCls} />
-        </Field>
-        <Field label="MRP (₹)">
-          <input {...register('mrp_inr')} type="number" min="0" className={inputCls} />
-        </Field>
+      </div>
+
+      {/* ── Pricing Section ────────────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-[#FAF8F5] border-b border-gray-100">
+          <p className="text-xs tracking-widest uppercase text-[#B8973A] font-medium">Pricing</p>
+          {autoSupported && paramsLoaded && (
+            <span className="text-[11px] text-gray-400">
+              Formula active for <span className="text-gray-600 font-medium">{watchedMetalType}</span>
+              {watchedMetalPurity && <> · {watchedMetalPurity}</>}
+            </span>
+          )}
+          {watchedMetalType && !autoSupported && (
+            <span className="text-[11px] text-amber-600">
+              No formula for {watchedMetalType} — enter prices manually
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4">
+          <PriceField
+            label="OG Price (₹)"
+            value={ogPrice}
+            overridden={ogOverridden}
+            autoSupported={autoSupported}
+            onChange={(v) => {
+              if (!autoFillingRef.current) setOgOverridden(true)
+              setOgPrice(v)
+            }}
+            onRecalc={recalcOg}
+          />
+          <PriceField
+            label="Selling Price (₹)"
+            value={spPrice}
+            overridden={spOverridden}
+            autoSupported={autoSupported}
+            onChange={(v) => {
+              if (!autoFillingRef.current) setSpOverridden(true)
+              setSpPrice(v)
+              // MRP follows SP unless also overridden
+              if (!autoFillingRef.current) {
+                const sp = parseFloat(v)
+                if (!isNaN(sp)) setMrp(String(Math.round(sp * 2.5)))
+              }
+            }}
+            onRecalc={recalcSp}
+          />
+          <div>
+            <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">MRP (₹)</label>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                value={mrp}
+                onChange={(e) => setMrp(e.target.value)}
+                placeholder="0"
+                className={inputCls}
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">Auto = Selling Price × 2.5</p>
+          </div>
+        </div>
+
+        {(ogOverridden || spOverridden) && (
+          <div className="mx-4 mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-3 py-2 text-xs text-amber-700">
+            <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
+            <span>
+              {[ogOverridden && 'OG Price', spOverridden && 'Selling Price'].filter(Boolean).join(' and ')} manually overridden.
+              {' '}Click <RefreshCw size={10} className="inline" /> to restore auto-calculated value.
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1,14 +1,46 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
 import { Upload, CheckCircle, AlertCircle, Loader2, Download } from 'lucide-react'
 
+// Columns the parser handles natively — everything else → custom_fields
+const STANDARD_COLS = new Set([
+  'sku', 'SKU',
+  'name', 'Name', 'Product Name',
+  'description', 'Description',
+  'category_id', 'Category',
+  'metal_type', 'Metal Type',
+  'metal_purity', 'Metal Purity',
+  'stone_type', 'Stone Type', 'Primary Stone',
+  'stone_weight_ct', 'Stone Weight (ct)',
+  'gross_weight_g', 'Gross Weight (g)',
+  'price_inr', 'Price (INR)', 'Selling Price (INR)',
+  'mrp_inr', 'MRP (INR)',
+  'stock_qty', 'Stock Qty',
+  'tags', 'Tags',
+  'is_active', 'Is Active',
+  'is_featured', 'Is Featured',
+  'Product Image',
+])
+
+function toMachineName(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+}
+
+function toDriveDirectUrl(url: string): string {
+  if (!url) return url
+  const match = url.match(/[?&]id=([\w-]+)/)
+  if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`
+  return url
+}
+
 interface Row {
   sku: string
   name: string
   description?: string
+  category_id?: string
   metal_type?: string
   metal_purity?: string
   stone_type?: string
@@ -20,15 +52,29 @@ interface Row {
   tags?: string
   is_active: boolean
   is_featured: boolean
+  images: string[]
+  custom_fields: Record<string, unknown>
   _valid: boolean
   _error?: string
+  _customCount: number
 }
 
 export default function ImportPage() {
   const [rows, setRows] = useState<Row[]>([])
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<{ imported: number; errors: number } | null>(null)
+  const [catMap, setCatMap] = useState<Record<string, string>>({}) // name → id
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.from('categories').select('id, name').then(({ data }) => {
+      if (data) {
+        const m: Record<string, string> = {}
+        data.forEach((c: { id: string; name: string }) => { m[c.name.toLowerCase()] = c.id })
+        setCatMap(m)
+      }
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
@@ -39,27 +85,55 @@ export default function ImportPage() {
       const wb = XLSX.read(data, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws)
+
       const parsed: Row[] = json.map((r: Record<string, unknown>) => {
-        const str = (v: unknown): string | undefined => (v != null ? String(v) : undefined)
+        const str  = (v: unknown): string | undefined => (v != null ? String(v) : undefined)
+        const num  = (v: unknown): number | undefined => { const n = Number(v); return (!v && v !== 0) || isNaN(n) ? undefined : n }
+
+        // Images from Product Image column
+        const imgRaw = str(r['Product Image'] ?? r['product_image'])
+        const images = imgRaw
+          ? imgRaw.split(',').map((u) => toDriveDirectUrl(u.trim())).filter(Boolean)
+          : []
+
+        // Category → id lookup
+        const catName = str(r.category_id ?? r.Category ?? r.category)
+        const category_id = catName ? catMap[catName.toLowerCase()] : undefined
+
+        // Custom fields: any column not in STANDARD_COLS
+        const custom_fields: Record<string, unknown> = {}
+        for (const key of Object.keys(r)) {
+          if (!STANDARD_COLS.has(key)) {
+            const val = r[key]
+            if (val !== null && val !== undefined && val !== '') {
+              custom_fields[toMachineName(key)] = val
+            }
+          }
+        }
+
         const row: Row = {
-          // Accept both template headers and raw field names
-          sku:            String(r.sku ?? r.SKU ?? '').trim(),
-          name:           String(r.name ?? r.Name ?? r['Product Name'] ?? '').trim(),
-          description:    str(r.description ?? r.Description),
-          metal_type:     str(r.metal_type ?? r['Metal Type']),
-          metal_purity:   str(r.metal_purity ?? r['Metal Purity']),
-          stone_type:     str(r.stone_type ?? r['Stone Type'] ?? r['Primary Stone']),
-          stone_weight_ct: Number(r.stone_weight_ct ?? r['Stone Weight (ct)'] ?? 0) || undefined,
-          gross_weight_g:  Number(r.gross_weight_g  ?? r['Gross Weight (g)']  ?? 0) || undefined,
-          price_inr:       Number(r.price_inr ?? r['Price (INR)'] ?? r['Selling Price (INR)'] ?? 0) || undefined,
-          mrp_inr:         Number(r.mrp_inr   ?? r['MRP (INR)']  ?? 0) || undefined,
-          stock_qty:       Number(r.stock_qty  ?? r['Stock Qty']  ?? 1),
+          sku:             String(r.sku ?? r.SKU ?? '').trim(),
+          name:            String(r.name ?? r.Name ?? r['Product Name'] ?? '').trim(),
+          description:     str(r.description ?? r.Description),
+          category_id,
+          metal_type:      str(r.metal_type ?? r['Metal Type']),
+          metal_purity:    str(r.metal_purity ?? r['Metal Purity']),
+          stone_type:      str(r.stone_type ?? r['Stone Type'] ?? r['Primary Stone']),
+          stone_weight_ct: num(r.stone_weight_ct ?? r['Stone Weight (ct)']),
+          gross_weight_g:  num(r.gross_weight_g  ?? r['Gross Weight (g)']),
+          price_inr:       num(r.price_inr ?? r['Price (INR)'] ?? r['Selling Price (INR)']),
+          mrp_inr:         num(r.mrp_inr   ?? r['MRP (INR)']),
+          stock_qty:       Number(r.stock_qty ?? r['Stock Qty'] ?? 1),
           tags:            str(r.tags ?? r.Tags),
           is_active:       r.is_active !== undefined ? Boolean(r.is_active) : true,
           is_featured:     Boolean(r.is_featured ?? r['Is Featured']),
+          images,
+          custom_fields,
           _valid: true,
+          _customCount: Object.keys(custom_fields).length,
         }
-        if (!row.sku) { row._valid = false; row._error = 'Missing SKU' }
+
+        if (!row.sku)  { row._valid = false; row._error = 'Missing SKU' }
         else if (!row.name) { row._valid = false; row._error = 'Missing Name' }
         return row
       })
@@ -67,7 +141,7 @@ export default function ImportPage() {
       setResult(null)
     }
     reader.readAsArrayBuffer(file)
-  }, [])
+  }, [catMap]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -83,17 +157,16 @@ export default function ImportPage() {
     const valid = rows
       .filter((r) => r._valid)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      .map(({ _valid, _error, tags, ...rest }) => ({
+      .map(({ _valid, _error, _customCount, tags, ...rest }) => ({
         ...rest,
         tags: tags ? String(tags).split(',').map((t) => t.trim()).filter(Boolean) : [],
-        images: [],
       }))
     await supabase.from('products').upsert(valid, { onConflict: 'sku' })
     setResult({ imported: valid.length, errors: rows.filter((r) => !r._valid).length })
     setImporting(false)
   }
 
-  const validCount = rows.filter((r) => r._valid).length
+  const validCount   = rows.filter((r) => r._valid).length
   const invalidCount = rows.filter((r) => !r._valid).length
 
   return (
@@ -110,7 +183,7 @@ export default function ImportPage() {
         </a>
       </div>
       <p className="text-sm text-gray-500 mb-8">
-        Use the template above to prepare your data. Required columns: <strong>SKU</strong>, <strong>Product Name</strong>. Upload the filled file below.
+        Required columns: <strong>SKU</strong>, <strong>Product Name</strong>. Extra columns are saved as custom fields automatically.
       </p>
 
       {!rows.length && (
@@ -169,8 +242,10 @@ export default function ImportPage() {
                   <th className="text-left px-3 py-2 text-gray-500 font-normal w-8"></th>
                   <th className="text-left px-3 py-2 text-gray-500 font-normal">SKU</th>
                   <th className="text-left px-3 py-2 text-gray-500 font-normal">Name</th>
-                  <th className="text-left px-3 py-2 text-gray-500 font-normal">Metal</th>
+                  <th className="text-left px-3 py-2 text-gray-500 font-normal">Category</th>
                   <th className="text-left px-3 py-2 text-gray-500 font-normal">Price</th>
+                  <th className="text-left px-3 py-2 text-gray-500 font-normal">Image</th>
+                  <th className="text-left px-3 py-2 text-gray-500 font-normal">Custom</th>
                   <th className="text-left px-3 py-2 text-gray-500 font-normal text-red-400">Error</th>
                 </tr>
               </thead>
@@ -184,9 +259,11 @@ export default function ImportPage() {
                       }
                     </td>
                     <td className="px-3 py-2 font-mono text-gray-700">{r.sku || <span className="text-gray-300 italic">empty</span>}</td>
-                    <td className="px-3 py-2 text-gray-700">{r.name || <span className="text-gray-300 italic">empty</span>}</td>
-                    <td className="px-3 py-2 text-gray-400">{r.metal_type ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-700 max-w-[180px] truncate">{r.name || <span className="text-gray-300 italic">empty</span>}</td>
+                    <td className="px-3 py-2 text-gray-400">{r.category_id ? <span className="text-green-600">✓ matched</span> : <span className="text-gray-300">—</span>}</td>
                     <td className="px-3 py-2 text-gray-400">{r.price_inr ? `₹${r.price_inr.toLocaleString('en-IN')}` : '—'}</td>
+                    <td className="px-3 py-2 text-gray-400">{r.images.length > 0 ? <span className="text-blue-500">{r.images.length} img</span> : '—'}</td>
+                    <td className="px-3 py-2 text-gray-400">{r._customCount > 0 ? <span className="text-purple-500">{r._customCount} fields</span> : '—'}</td>
                     <td className="px-3 py-2 text-red-400">{r._error ?? ''}</td>
                   </tr>
                 ))}
