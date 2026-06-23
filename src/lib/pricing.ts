@@ -83,8 +83,8 @@ function calcGold(cf: Record<string, unknown>, purity: number, p: PricingParams,
 
   const metal   = netWt * (purity / 24) * p.gold_rate
   const labour  = netWt * p.labour_per_gm
-  // diamond weight: use standard stone_weight_ct field first, fall back to custom field
-  const diamondWt = n(stoneWeightCt) || n(cf.diamond_weight_ct)
+  // diamond weight: built-in stone_weight_ct first, then custom field fallbacks
+  const diamondWt = n(stoneWeightCt) || n(cf.diamond_weight_ct) || n(cf.stone_weight_g)
   const diamond = diamondWt * p.diamond_rate
   const polki   =
     n(cf.polki_weight_10_14) * p.polki_weight_10_14 +

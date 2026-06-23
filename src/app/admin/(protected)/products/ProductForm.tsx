@@ -198,7 +198,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         ...prev,
         ...(data.net_weight_gm        != null ? { net_weight_gm:        data.net_weight_gm }        : {}),
         ...(data.cvd_weight_ct        != null ? { cvd_weight_ct:        data.cvd_weight_ct }        : {}),
-        ...(data.polki_weight_ct      != null ? { polki_weight_ct:      data.polki_weight_ct }      : {}),
+        ...(data.polki_weight_ct      != null ? { polki_weight_g:        data.polki_weight_ct }      : {}),
         ...(data.stone_details                ? { stone_details:        data.stone_details }         : {}),
         ...(data.jewellery_sub_category       ? { jewellery_sub_category: data.jewellery_sub_category } : {}),
       }))
@@ -410,7 +410,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   }
 
   // Fields pinned at the top (rendered inline, excluded from the main custom fields loop)
-  const PINNED_TOP = ['jewellery_sub_category', 'net_weight_gm', 'polki_weight_ct', 'cvd_weight_ct', 'stone_details']
+  const PINNED_TOP = ['jewellery_sub_category', 'net_weight_gm', 'stone_weight_g', 'polki_weight_g', 'cvd_weight_ct', 'stone_details']
   const pinnedMap  = Object.fromEntries(
     params.filter((p) => PINNED_TOP.includes(p.name)).map((p) => [p.name, p])
   )
@@ -597,13 +597,16 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         {/* Net Weight (pinned custom field) */}
         <PinnedField name="net_weight_gm" />
 
-        {/* Polki Weight (pinned custom field) */}
-        <PinnedField name="polki_weight_ct" />
-
-        {/* Stone Weight (ct) — built-in */}
-        <Field label="Stone Weight (ct)">
+        {/* Diamond Weight — built-in (ct, used for diamond rate in pricing) */}
+        <Field label="Diamond Weight (ct)">
           <input {...register('stone_weight_ct')} type="number" step="any" min="0" className={inputCls} />
         </Field>
+
+        {/* Stone Weight in grams — custom field (used for stone labour in pricing) */}
+        <PinnedField name="stone_weight_g" />
+
+        {/* Polki Weight (pinned custom field) */}
+        <PinnedField name="polki_weight_g" />
 
         {/* CVD Weight (pinned custom field) */}
         <PinnedField name="cvd_weight_ct" />
