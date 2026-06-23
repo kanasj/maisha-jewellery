@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, ProductParam } from '@/lib/types'
 import { calcPrice, buildPricingParams, PRICING_PARAM_KEYS, type PricingParams } from '@/lib/pricing'
-import { Upload, X, Loader2, RefreshCw, AlertTriangle, Zap } from 'lucide-react'
+import { Upload, X, Loader2, RefreshCw, AlertTriangle, Zap, Sparkles, ScanLine } from 'lucide-react'
 import Image from 'next/image'
 
 const schema = z.object({
@@ -140,7 +140,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   const [paramsLoaded, setParamsLoaded] = useState(false)
 
   // ── RHF ─────────────────────────────────────────────────────────────────────
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(schema) as any,
     defaultValues: initialData
@@ -152,6 +152,69 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   const watchedMetalPurity  = watch('metal_purity')
   const watchedGrossWeight  = watch('gross_weight_g')
   const watchedStoneWeight  = watch('stone_weight_ct')
+
+  // ── AI Scan state ────────────────────────────────────────────────────────────
+  const [tagFile, setTagFile]           = useState<File | null>(null)
+  const [tagPreview, setTagPreview]     = useState<string | null>(null)
+  const [scanning, setScanning]         = useState(false)
+  const [scanMsg, setScanMsg]           = useState<{ text: string; ok: boolean } | null>(null)
+  const [categoryHint, setCategoryHint] = useState<string | null>(null)
+
+  async function handleAIScan() {
+    if (!tagFile) return
+    setScanning(true)
+    setScanMsg(null)
+    setCategoryHint(null)
+    try {
+      const subCatOptions = params.find((p) => p.name === 'jewellery_sub_category')?.options ?? []
+
+      const fd = new FormData()
+      fd.append('tag_image', tagFile)
+      fd.append('categories', JSON.stringify(categories.map((c) => ({ id: c.id, name: c.name }))))
+      fd.append('subcategory_options', JSON.stringify(subCatOptions))
+
+      const res = await fetch('/api/sku-identify', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Scan failed')
+
+      if (data.sku)          setValue('sku', data.sku)
+      if (data.name)         setValue('name', data.name)
+      if (data.description)  setValue('description', data.description)
+      if (data.metal_type)   setValue('metal_type', data.metal_type)
+      if (data.metal_purity) setValue('metal_purity', String(data.metal_purity))
+      if (data.gross_weight_g  != null) setValue('gross_weight_g',  data.gross_weight_g)
+      if (data.stone_weight_ct != null) setValue('stone_weight_ct', data.stone_weight_ct)
+      if (Array.isArray(data.tags) && data.tags.length)
+        setValue('tags', (data.tags as string[]).join(', '))
+
+      // Category — set if matched, otherwise surface the hint
+      if (data.category_id) {
+        setValue('category_id', data.category_id)
+      } else if (data.category_hint) {
+        setCategoryHint(data.category_hint)
+      }
+
+      setCustomFields((prev) => ({
+        ...prev,
+        ...(data.net_weight_gm        != null ? { net_weight_gm:        data.net_weight_gm }        : {}),
+        ...(data.cvd_weight_ct        != null ? { cvd_weight_ct:        data.cvd_weight_ct }        : {}),
+        ...(data.polki_weight_ct      != null ? { polki_weight_ct:      data.polki_weight_ct }      : {}),
+        ...(data.stone_details                ? { stone_details:        data.stone_details }         : {}),
+        ...(data.jewellery_sub_category       ? { jewellery_sub_category: data.jewellery_sub_category } : {}),
+      }))
+
+      if (data.og_price_inr != null) {
+        setOgPrice(String(data.og_price_inr))
+        setOgOverridden(true)
+      }
+
+      setScanMsg({ text: 'Fields filled — review and save.', ok: true })
+    } catch (e) {
+      setScanMsg({ text: e instanceof Error ? e.message : 'Scan failed', ok: false })
+    } finally {
+      setScanning(false)
+    }
+  }
 
   // Track whether the next price change comes from user input vs auto-fill
   const autoFillingRef = useRef(false)
@@ -371,6 +434,90 @@ export default function ProductForm({ categories, initialData, productId }: Prop
     <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-8">
       {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded border border-red-100">{error}</p>}
 
+      {/* ── AI Scan Panel ── */}
+      <div className="rounded-xl border border-[#B8973A]/25 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r from-[#FAF7F0] to-[#FDF9F3] border-b border-[#B8973A]/15">
+          <Sparkles size={13} className="text-[#B8973A]" />
+          <span className="text-[11px] tracking-[0.2em] uppercase font-semibold text-[#B8973A]">AI Auto-fill</span>
+          <span className="text-[10px] text-[#B8973A]/50 font-normal normal-case tracking-normal">via Gemini</span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-[10px] text-gray-400">Scan tag → fills form</span>
+          </div>
+        </div>
+
+        <div className="p-5 bg-white">
+          {/* Upload zone — full width, horizontal */}
+          <label className={`group relative flex items-center gap-4 w-full px-4 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-all ${
+            tagFile
+              ? 'border-[#B8973A]/50 bg-[#FAF7F0]'
+              : 'border-gray-200 hover:border-[#B8973A]/40 hover:bg-[#FAF7F0]/50'
+          }`}>
+            {/* Preview or placeholder */}
+            <div className="flex-shrink-0 w-14 h-14 rounded-md overflow-hidden bg-[#F5F0E8] flex items-center justify-center">
+              {tagPreview
+                ? <img src={tagPreview} alt="tag" className="w-full h-full object-cover" />
+                : <ScanLine size={20} className="text-[#B8973A]/40" />
+              }
+            </div>
+
+            <div className="flex-1 min-w-0">
+              {tagFile
+                ? <>
+                    <p className="text-sm font-medium text-gray-700 truncate">{tagFile.name}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{(tagFile.size / 1024).toFixed(0)} KB · click to replace</p>
+                  </>
+                : <>
+                    <p className="text-sm text-gray-600">Upload jewellery tag photo</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">JPG, PNG, HEIC · click to browse</p>
+                  </>
+              }
+            </div>
+
+            {tagFile && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setTagFile(null); setTagPreview(null) }}
+                className="flex-shrink-0 p-1 rounded-full hover:bg-red-50 text-gray-300 hover:text-red-400 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) { setTagFile(f); setTagPreview(URL.createObjectURL(f)) } }}
+            />
+          </label>
+
+          {/* Action row */}
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              type="button"
+              disabled={!tagFile || scanning}
+              onClick={handleAIScan}
+              className="flex items-center gap-2 bg-[#B8973A] text-white text-[11px] tracking-[0.15em] uppercase font-medium px-5 py-2.5 rounded-lg hover:bg-[#A07C2A] transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+            >
+              {scanning
+                ? <><Loader2 size={12} className="animate-spin" /> Scanning…</>
+                : <><Sparkles size={12} /> Scan & Auto-fill</>
+              }
+            </button>
+
+            {scanMsg && (
+              <span className={`text-xs ${scanMsg.ok ? 'text-green-600' : 'text-red-500'}`}>
+                {scanMsg.ok ? '✓ ' : ''}{scanMsg.text}
+              </span>
+            )}
+            {!tagFile && !scanMsg && (
+              <span className="text-[11px] text-gray-400">Upload a tag photo first</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* ── Images ── */}
       <div>
         <label className="text-xs tracking-widest uppercase text-gray-500 block mb-3">Images</label>
@@ -405,12 +552,21 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </Field>
 
         {/* Category */}
-        <Field label="Category">
-          <select {...register('category_id')} className={inputCls}>
-            <option value="">— None —</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
+        <div>
+          <Field label="Category">
+            <select {...register('category_id')} className={inputCls}>
+              <option value="">— None —</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+          {categoryHint && (
+            <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+              <AlertTriangle size={11} className="mt-0.5 flex-shrink-0" />
+              AI detected &ldquo;<strong>{categoryHint}</strong>&rdquo; — category not found in the list.
+              Go to <span className="underline font-medium">Admin → Categories</span> to add it, then re-scan.
+            </p>
+          )}
+        </div>
 
         {/* Jewellery Sub Category (pinned custom field) */}
         <PinnedField name="jewellery_sub_category" />
