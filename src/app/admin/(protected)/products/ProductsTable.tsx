@@ -5,7 +5,7 @@ import Image from 'next/image'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import { Pencil, Trash2, Download, Loader2, X } from 'lucide-react'
+import { Pencil, Trash2, Download, Loader2, X, ExternalLink } from 'lucide-react'
 
 interface AdminProduct {
   id: string
@@ -48,10 +48,12 @@ function ProductThumb({ product }: { product: AdminProduct }) {
 
 export default function ProductsTable({ initialProducts }: { initialProducts: AdminProduct[] }) {
   const [products, setProducts]       = useState(initialProducts)
-  const [stockTab, setStockTab]       = useState<'in' | 'out'>('in')
-  const [filterField, setFilterField] = useState('')
-  const [filterValue, setFilterValue] = useState('')
-  const [downloading, setDownloading] = useState(false)
+  const [stockTab, setStockTab]         = useState<'in' | 'out'>('in')
+  const [filterField, setFilterField]   = useState('')
+  const [filterValue, setFilterValue]   = useState('')
+  const [filterField2, setFilterField2] = useState('')
+  const [filterValue2, setFilterValue2] = useState('')
+  const [downloading, setDownloading]   = useState(false)
   const supabase = createClient()
 
   // Unique category names derived from loaded products
@@ -68,24 +70,34 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
     [products]
   )
 
-  // Options for the currently selected filter field
+  // Options for the currently selected filter fields
   const activeFieldDef = FILTER_FIELDS.find((f) => f.key === filterField)
   const activeOptions: string[] | null =
     activeFieldDef?.options === 'dynamic_category' ? categoryOptions :
     activeFieldDef?.options === 'dynamic_jsc'      ? jscOptions :
     (activeFieldDef?.options as string[] | null) ?? null
 
-  // Matches the field filter only (no stock check) — used for tab counts
-  function matchesFieldFilter(p: AdminProduct): boolean {
-    if (!filterField || !filterValue) return true
-    const q = filterValue.toLowerCase()
-    if (filterField === 'name'                   && !p.name.toLowerCase().includes(q))                                                         return false
-    if (filterField === 'sku'                    && !p.sku.toLowerCase().includes(q))                                                          return false
-    if (filterField === 'category'               && !(p.categories?.name ?? '').toLowerCase().includes(q))                                     return false
-    if (filterField === 'metal_type'             && !(p.metal_type   ?? '').toLowerCase().includes(q))                                         return false
-    if (filterField === 'metal_purity'           && !(p.metal_purity ?? '').toLowerCase().includes(q))                                         return false
-    if (filterField === 'jewellery_sub_category' && String((p.custom_fields ?? {})['jewellery_sub_category'] ?? '').toLowerCase() !== q)       return false
+  const activeFieldDef2 = FILTER_FIELDS.find((f) => f.key === filterField2)
+  const activeOptions2: string[] | null =
+    activeFieldDef2?.options === 'dynamic_category' ? categoryOptions :
+    activeFieldDef2?.options === 'dynamic_jsc'      ? jscOptions :
+    (activeFieldDef2?.options as string[] | null) ?? null
+
+  function matchesFilter(p: AdminProduct, field: string, value: string): boolean {
+    if (!field || !value) return true
+    const q = value.toLowerCase()
+    if (field === 'name'                   && !p.name.toLowerCase().includes(q))                                                       return false
+    if (field === 'sku'                    && !p.sku.toLowerCase().includes(q))                                                        return false
+    if (field === 'category'               && !(p.categories?.name ?? '').toLowerCase().includes(q))                                   return false
+    if (field === 'metal_type'             && !(p.metal_type   ?? '').toLowerCase().includes(q))                                       return false
+    if (field === 'metal_purity'           && !(p.metal_purity ?? '').toLowerCase().includes(q))                                       return false
+    if (field === 'jewellery_sub_category' && String((p.custom_fields ?? {})['jewellery_sub_category'] ?? '').toLowerCase() !== q)     return false
     return true
+  }
+
+  // Matches both filters (AND logic) — used for tab counts and final filter
+  function matchesFieldFilter(p: AdminProduct): boolean {
+    return matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)
   }
 
   const inStockCount  = products.filter((p) =>  isInStock(p) && matchesFieldFilter(p)).length
@@ -98,7 +110,7 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
       if (!matchesFieldFilter(p)) return false
       return true
     })
-  }, [products, stockTab, filterField, filterValue]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [products, stockTab, filterField, filterValue, filterField2, filterValue2]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function deleteProduct(id: string) {
     if (!confirm('Delete this product? This cannot be undone.')) return
@@ -176,65 +188,111 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
       </div>
 
       {/* ── Filter + Download ── */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* Dynamic field filter */}
-        <select
-          value={filterField}
-          onChange={(e) => { setFilterField(e.target.value); setFilterValue('') }}
-          className="border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#B8973A] bg-white"
-        >
-          <option value="">Filter by…</option>
-          {FILTER_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-        </select>
-        {filterField && (
-          activeOptions ? (
-            <select
-              value={filterValue}
-              onChange={(e) => setFilterValue(e.target.value)}
-              className="border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#B8973A] bg-white"
-            >
-              <option value="">— All —</option>
-              {activeOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-          ) : (
-            <div className="relative">
-              <input
-                type="text"
-                placeholder={`${activeFieldDef?.label ?? ''}…`}
+      <div className="flex flex-col gap-2 mb-6">
+        {/* Row 1: Filter 1 + Download */}
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={filterField}
+            onChange={(e) => { setFilterField(e.target.value); setFilterValue('') }}
+            className="border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#B8973A] bg-white"
+          >
+            <option value="">Filter by…</option>
+            {FILTER_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+          </select>
+          {filterField && (
+            activeOptions ? (
+              <select
                 value={filterValue}
                 onChange={(e) => setFilterValue(e.target.value)}
-                className="border border-gray-200 px-3 py-2 pr-7 text-sm focus:outline-none focus:border-[#B8973A] w-40"
-              />
-              {filterValue && (
-                <button
-                  type="button"
-                  onClick={() => setFilterValue('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          )
-        )}
+                className="border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#B8973A] bg-white"
+              >
+                <option value="">— All —</option>
+                {activeOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder={`${activeFieldDef?.label ?? ''}…`}
+                  value={filterValue}
+                  onChange={(e) => setFilterValue(e.target.value)}
+                  className="border border-gray-200 px-3 py-2 pr-7 text-sm focus:outline-none focus:border-[#B8973A] w-40"
+                />
+                {filterValue && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterValue('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            )
+          )}
+          <button
+            onClick={downloadExcel}
+            disabled={downloading}
+            className="flex items-center gap-2 border border-[#B8973A] text-[#B8973A] text-xs tracking-widest uppercase px-5 py-2.5 hover:bg-[#B8973A] hover:text-white transition-colors disabled:opacity-50 ml-auto"
+          >
+            {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            {downloading ? 'Exporting…' : 'Download Excel'}
+          </button>
+        </div>
 
-        <button
-          onClick={downloadExcel}
-          disabled={downloading}
-          className="flex items-center gap-2 border border-[#B8973A] text-[#B8973A] text-xs tracking-widest uppercase px-5 py-2.5 hover:bg-[#B8973A] hover:text-white transition-colors disabled:opacity-50 ml-auto"
-        >
-          {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-          {downloading ? 'Exporting…' : 'Download Excel'}
-        </button>
+        {/* Row 2: Filter 2 (always visible) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={filterField2}
+            onChange={(e) => { setFilterField2(e.target.value); setFilterValue2('') }}
+            className="border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#B8973A] bg-white"
+          >
+            <option value="">And filter by…</option>
+            {FILTER_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+          </select>
+          {filterField2 && (
+            activeOptions2 ? (
+              <select
+                value={filterValue2}
+                onChange={(e) => setFilterValue2(e.target.value)}
+                className="border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#B8973A] bg-white"
+              >
+                <option value="">— All —</option>
+                {activeOptions2.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder={`${activeFieldDef2?.label ?? ''}…`}
+                  value={filterValue2}
+                  onChange={(e) => setFilterValue2(e.target.value)}
+                  className="border border-gray-200 px-3 py-2 pr-7 text-sm focus:outline-none focus:border-[#B8973A] w-40"
+                />
+                {filterValue2 && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterValue2('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       {/* ── Mobile card list ── */}
       <div className="sm:hidden space-y-3">
         {filtered.map((p) => (
           <div key={p.id} className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
-            <ProductThumb product={p} />
+            <Link href={`/product/${p.id}`} target="_blank" className="flex-shrink-0">
+              <ProductThumb product={p} />
+            </Link>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-[#1A1714] truncate">{p.name}</p>
+              <Link href={`/product/${p.id}`} target="_blank" className="font-medium text-sm text-[#1A1714] truncate hover:text-[#B8973A] transition-colors block">{p.name}</Link>
               <p className="text-xs text-gray-400 font-mono mt-0.5">{p.sku}</p>
               <div className="flex items-center gap-2 mt-1.5">
                 <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -247,6 +305,9 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
               </div>
             </div>
             <div className="flex flex-col gap-2">
+              <Link href={`/product/${p.id}`} target="_blank" className="p-2 hover:bg-gray-100 rounded text-gray-500 hover:text-[#B8973A] transition-colors" title="View on storefront">
+                <ExternalLink size={15} />
+              </Link>
               <Link href={`/admin/products/${p.id}`} className="p-2 hover:bg-gray-100 rounded text-gray-500 hover:text-[#B8973A] transition-colors">
                 <Pencil size={15} />
               </Link>
@@ -279,10 +340,10 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
             {filtered.map((p) => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
+                  <Link href={`/product/${p.id}`} target="_blank" className="flex items-center gap-3 group">
                     <ProductThumb product={p} />
-                    <span className="font-medium text-[#1A1714]">{p.name}</span>
-                  </div>
+                    <span className="font-medium text-[#1A1714] group-hover:text-[#B8973A] transition-colors">{p.name}</span>
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-gray-500 font-mono text-xs">{p.sku}</td>
                 <td className="px-4 py-3 text-gray-500">{p.categories?.name ?? '—'}</td>
@@ -299,6 +360,9 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2 justify-end">
+                    <Link href={`/product/${p.id}`} target="_blank" className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-[#B8973A] transition-colors" title="View on storefront">
+                      <ExternalLink size={14} />
+                    </Link>
                     <Link href={`/admin/products/${p.id}`} className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-[#B8973A] transition-colors">
                       <Pencil size={14} />
                     </Link>
