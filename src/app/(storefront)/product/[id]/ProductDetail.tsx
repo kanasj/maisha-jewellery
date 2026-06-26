@@ -109,7 +109,7 @@ export default function ProductDetail({
         <div>
           <div className="aspect-square bg-[#F0EBE3] relative mb-4 overflow-hidden">
             {images[activeImg] ? (
-              <Image src={images[activeImg]} alt={product.name} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+              <Image src={images[activeImg]} alt={product.name} fill className="object-contain" sizes="(max-width: 768px) 100vw, 50vw" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <span className="font-cormorant text-8xl text-[#B8973A]/20">K</span>
@@ -120,7 +120,7 @@ export default function ProductDetail({
             <div className="flex gap-3 overflow-x-auto">
               {images.map((img, i) => (
                 <button key={i} onClick={() => setActiveImg(i)} className={`w-20 h-20 flex-shrink-0 relative border-2 transition-colors overflow-hidden ${activeImg === i ? 'border-[#B8973A]' : 'border-transparent'}`}>
-                  <Image src={img} alt={`${product.name} ${i + 1}`} fill className="object-cover" sizes="80px" />
+                  <Image src={img} alt={`${product.name} ${i + 1}`} fill className="object-contain" sizes="80px" />
                 </button>
               ))}
             </div>

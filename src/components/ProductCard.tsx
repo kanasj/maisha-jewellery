@@ -13,7 +13,7 @@ export default function ProductCard({ product }: { product: Product }) {
             src={image}
             alt={product.name}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            className="object-contain group-hover:scale-105 transition-transform duration-500"
             sizes="(max-width: 768px) 50vw, 25vw"
           />
         ) : (
