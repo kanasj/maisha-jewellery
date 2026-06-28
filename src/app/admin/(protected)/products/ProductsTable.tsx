@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import * as XLSX from 'xlsx'
@@ -46,15 +46,28 @@ function ProductThumb({ product }: { product: AdminProduct }) {
   )
 }
 
+const FILTERS_KEY = 'admin_product_filters'
+
+function readFilters() {
+  if (typeof window === 'undefined') return null
+  try { return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? 'null') } catch { return null }
+}
+
 export default function ProductsTable({ initialProducts }: { initialProducts: AdminProduct[] }) {
   const [products, setProducts]       = useState(initialProducts)
-  const [stockTab, setStockTab]         = useState<'in' | 'out'>('in')
-  const [filterField, setFilterField]   = useState('')
-  const [filterValue, setFilterValue]   = useState('')
-  const [filterField2, setFilterField2] = useState('')
-  const [filterValue2, setFilterValue2] = useState('')
+  const [stockTab, setStockTab]         = useState<'in' | 'out'>(() => readFilters()?.stockTab ?? 'in')
+  const [filterField, setFilterField]   = useState<string>(() => readFilters()?.filterField ?? '')
+  const [filterValue, setFilterValue]   = useState<string>(() => readFilters()?.filterValue ?? '')
+  const [filterField2, setFilterField2] = useState<string>(() => readFilters()?.filterField2 ?? '')
+  const [filterValue2, setFilterValue2] = useState<string>(() => readFilters()?.filterValue2 ?? '')
   const [downloading, setDownloading]   = useState(false)
   const supabase = createClient()
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ stockTab, filterField, filterValue, filterField2, filterValue2 }))
+    } catch {}
+  }, [stockTab, filterField, filterValue, filterField2, filterValue2])
 
   // Unique category names derived from loaded products
   const categoryOptions = useMemo(
