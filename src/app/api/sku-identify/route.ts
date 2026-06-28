@@ -38,15 +38,15 @@ From the TAG image, read:
 - metal_purity: just the number — e.g. "18" for 18K, "22" for 22K, "14" for 14K, "9" for 9K, "24" for 24K (or null)
 - gross_weight_g: gross weight in grams as a number (or null)
 - net_weight_gm: net weight in grams as a number (or null)
-- stone_weight_ct: weight of natural/mined diamonds or gemstones in carats (or null). Do NOT put CVD or polki weight here.
+- diamond_weight_ct: weight of natural/mined diamonds in carats (or null). Do NOT put CVD or polki weight here.
 - cvd_weight_ct: weight of CVD (lab-grown) diamonds in carats — look for "CVD" label on the tag (or null)
 - polki_weight_ct: weight of polki diamonds in carats — look for "Polki" label on the tag (or null)
 - stone_details: full description of stones e.g. "1 solitaire diamond 0.25ct VS clarity, CVD 3.00ct" (or null)
 - og_price_inr: original price / MRP in INR as a number (or null)
 
 IMPORTANT for weights: each weight field is separate.
-- If the tag says "CVD - 3.00 ct" → put 3.00 in cvd_weight_ct, leave stone_weight_ct null
-- If the tag says "Diamond - 0.25 ct" → put 0.25 in stone_weight_ct
+- If the tag says "CVD - 3.00 ct" → put 3.00 in cvd_weight_ct, leave diamond_weight_ct null
+- If the tag says "Diamond - 0.25 ct" → put 0.25 in diamond_weight_ct
 - If the tag says "Polki - 2.00 ct" → put 2.00 in polki_weight_ct
 - Multiple weights can be filled at once if the tag shows all of them
 
@@ -80,7 +80,7 @@ Return exactly this JSON shape (use null for unknown fields, empty array for unk
   "metal_purity": null,
   "gross_weight_g": null,
   "net_weight_gm": null,
-  "stone_weight_ct": null,
+  "diamond_weight_ct": null,
   "cvd_weight_ct": null,
   "polki_weight_ct": null,
   "stone_details": null,

@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, ProductParam } from '@/lib/types'
-import { calcPrice, buildPricingParams, PRICING_PARAM_KEYS, type PricingParams } from '@/lib/pricing'
+import { calcPrice, calcPriceBreakdown, buildPricingParams, PRICING_PARAM_KEYS, type PricingParams, type DiamondRateRow, type PriceBreakdownLine } from '@/lib/pricing'
 import { Upload, X, Loader2, RefreshCw, AlertTriangle, Zap, Sparkles, ScanLine } from 'lucide-react'
 import Image from 'next/image'
 
@@ -17,7 +17,7 @@ const schema = z.object({
   category_id:    z.string().optional(),
   metal_type:     z.string().optional(),
   metal_purity:   z.string().optional(),
-  stone_weight_ct:z.coerce.number().optional(),
+  diamond_weight_ct:z.coerce.number().optional(),
   gross_weight_g: z.coerce.number().optional(),
   stock_qty:      z.coerce.number().optional(),
   is_active:      z.boolean().optional(),
@@ -114,6 +114,10 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   const router  = useRouter()
   const supabase = createClient()
 
+  // ── SKU generation ───────────────────────────────────────────────────────────
+  const [skuGenerating, setSkuGenerating] = useState(false)
+  const [skuGenError,   setSkuGenError]   = useState('')
+
   // ── Images ──────────────────────────────────────────────────────────────────
   const [images, setImages]     = useState<string[]>(initialData?.images ?? [])
   const [uploading, setUploading] = useState(false)
@@ -138,6 +142,9 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   const [ogParams, setOgParams]   = useState<PricingParams | null>(null)
   const [spParams, setSpParams]   = useState<PricingParams | null>(null)
   const [paramsLoaded, setParamsLoaded] = useState(false)
+  const [diamondRates, setDiamondRates]               = useState<DiamondRateRow[]>([])
+  const [diamondSpMultiplier, setDiamondSpMultiplier] = useState(2)
+  const [ogBreakdown, setOgBreakdown]                 = useState<PriceBreakdownLine[]>([])
 
   // ── RHF ─────────────────────────────────────────────────────────────────────
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
@@ -151,7 +158,8 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   const watchedMetalType    = watch('metal_type')
   const watchedMetalPurity  = watch('metal_purity')
   const watchedGrossWeight  = watch('gross_weight_g')
-  const watchedStoneWeight  = watch('stone_weight_ct')
+  const watchedCategoryId   = watch('category_id')
+  const watchedDiamondWeight = watch('diamond_weight_ct')
 
   // ── AI Scan state ────────────────────────────────────────────────────────────
   const [tagFile, setTagFile]           = useState<File | null>(null)
@@ -183,7 +191,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
       if (data.metal_type)   setValue('metal_type', data.metal_type)
       if (data.metal_purity) setValue('metal_purity', String(data.metal_purity))
       if (data.gross_weight_g  != null) setValue('gross_weight_g',  data.gross_weight_g)
-      if (data.stone_weight_ct != null) setValue('stone_weight_ct', data.stone_weight_ct)
+      if (data.diamond_weight_ct != null) setValue('diamond_weight_ct', data.diamond_weight_ct)
       if (Array.isArray(data.tags) && data.tags.length)
         setValue('tags', (data.tags as string[]).join(', '))
 
@@ -228,22 +236,25 @@ export default function ProductForm({ categories, initialData, productId }: Prop
       .then(({ data }) => setParams((data as ProductParam[]) ?? []))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Load pricing params from site_settings ───────────────────────────────────
+  // ── Load pricing params + diamond rates ──────────────────────────────────────
   useEffect(() => {
-    const keys = [
+    const settingsKeys = [
       ...PRICING_PARAM_KEYS.map((k) => `og_${k}`),
       ...PRICING_PARAM_KEYS.map((k) => `sp_${k}`),
+      'diamond_sp_multiplier',
     ]
-    supabase
-      .from('site_settings')
-      .select('key, value')
-      .in('key', keys)
-      .then(({ data }) => {
-        const rows = (data ?? []) as { key: string; value: string }[]
-        setOgParams(buildPricingParams(rows, 'og'))
-        setSpParams(buildPricingParams(rows, 'sp'))
-        setParamsLoaded(true)
-      })
+    Promise.all([
+      supabase.from('site_settings').select('key, value').in('key', settingsKeys),
+      supabase.from('diamond_rates').select('*'),
+    ]).then(([{ data: settingsData }, { data: ratesData }]) => {
+      const rows = (settingsData ?? []) as { key: string; value: string }[]
+      setOgParams(buildPricingParams(rows, 'og'))
+      setSpParams(buildPricingParams(rows, 'sp'))
+      const mult = rows.find((r) => r.key === 'diamond_sp_multiplier')?.value
+      if (mult) setDiamondSpMultiplier(parseFloat(mult) || 2)
+      setDiamondRates((ratesData ?? []) as DiamondRateRow[])
+      setParamsLoaded(true)
+    })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-calculate prices whenever inputs change ──────────────────────────────
@@ -254,19 +265,22 @@ export default function ProductForm({ categories, initialData, productId }: Prop
       metal_type:     watchedMetalType,
       metal_purity:   watchedMetalPurity,
       gross_weight_g: watchedGrossWeight  ? Number(watchedGrossWeight)  : undefined,
-      stone_weight_ct: watchedStoneWeight ? Number(watchedStoneWeight) : undefined,
+      diamond_weight_ct: watchedDiamondWeight ? Number(watchedDiamondWeight) : undefined,
       custom_fields:  customFields,
     }
 
     autoFillingRef.current = true
 
     if (!ogOverridden && ogParams) {
-      const computed = calcPrice(fields, ogParams)
+      const computed = calcPrice(fields, ogParams, { diamondRates, rateCol: 'og_rate' })
       if (computed !== null) setOgPrice(String(computed))
+    }
+    if (ogParams) {
+      setOgBreakdown(calcPriceBreakdown(fields, ogParams, { diamondRates, rateCol: 'og_rate' }) ?? [])
     }
 
     if (!spOverridden && spParams) {
-      const computed = calcPrice(fields, spParams)
+      const computed = calcPrice(fields, spParams, { diamondRates, rateCol: 'sp_rate', diamondSpMultiplier })
       if (computed !== null) {
         setSpPrice(String(computed))
         setMrp(String(Math.round(computed * 2.5)))
@@ -275,7 +289,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
 
     // Small delay so state updates complete before resetting the flag
     setTimeout(() => { autoFillingRef.current = false }, 50)
-  }, [watchedMetalType, watchedMetalPurity, watchedGrossWeight, watchedStoneWeight, customFields, paramsLoaded, ogParams, spParams, ogOverridden, spOverridden]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [watchedMetalType, watchedMetalPurity, watchedGrossWeight, watchedDiamondWeight, customFields, paramsLoaded, ogParams, spParams, ogOverridden, spOverridden, diamondRates, diamondSpMultiplier]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Recalculate helpers ───────────────────────────────────────────────────────
   function recalcOg() {
@@ -284,6 +298,60 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   function recalcSp() {
     setSpOverridden(false)
     // MRP follows SP automatically so no separate reset needed
+  }
+
+  // ── SKU generation ────────────────────────────────────────────────────────────
+  function subCatCode(subCat: string): string {
+    return subCat.trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase()).join('')
+  }
+
+  function stoneCode(diamondWt: number, cvdWt: number, cf: Record<string, unknown>): string {
+    const hasPolki = Object.keys(cf).some(
+      (k) => k.startsWith('polki_') && parseFloat(String(cf[k] ?? '0')) > 0
+    )
+    const hasMoissanite = parseFloat(String(cf.moissanite_weight ?? cf.mosannite_weight ?? '0')) > 0
+    const hasBD         = parseFloat(String(cf.black_diamond_weight_ct ?? cf.black_diamond ?? '0')) > 0
+    const parts: string[] = []
+    if (diamondWt > 0)  parts.push('D')
+    if (cvdWt > 0)      parts.push('CVD')
+    if (hasPolki)       parts.push('P')
+    if (hasMoissanite)  parts.push('M')
+    if (hasBD)          parts.push('BD')
+    return parts.join('')
+  }
+
+  async function suggestSku() {
+    setSkuGenError('')
+    const subCat  = String(customFields.jewellery_sub_category ?? '').trim()
+    const catName = categories.find((c) => c.id === watchedCategoryId)?.name ?? ''
+
+    if (!catName)  { setSkuGenError('Set Category first'); return }
+    if (!subCat)   { setSkuGenError('Set Jewellery Sub Category first'); return }
+
+    const catCode = subCatCode(catName)
+    const jscCode = subCatCode(subCat)
+    const diamondWt = parseFloat(String(watchedDiamondWeight ?? '0')) || 0
+    const cvdWt     = parseFloat(String(customFields.cvd_weight_ct ?? '0')) || 0
+    const stone     = stoneCode(diamondWt, cvdWt, customFields)
+
+    // Format: {CAT}_{JSC}_{STONE}-{NUMBER}  or  {CAT}_{JSC}-{NUMBER} if no stones
+    const prefix = stone
+      ? `${catCode}_${jscCode}_${stone}`
+      : `${catCode}_${jscCode}`
+
+    setSkuGenerating(true)
+    const { data } = await supabase
+      .from('products')
+      .select('sku')
+      .ilike('sku', `${prefix}-%`)
+
+    const nums = (data ?? [])
+      .map((r: { sku: string }) => { const m = r.sku.match(/-(\d+)$/); return m ? parseInt(m[1]) : 0 })
+      .filter((n) => n >= 1001)
+
+    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1001
+    setValue('sku', `${prefix}-${next}`)
+    setSkuGenerating(false)
   }
 
   // ── Whether auto-calc is possible for the current metal type ─────────────────
@@ -410,7 +478,12 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   }
 
   // Fields pinned at the top (rendered inline, excluded from the main custom fields loop)
-  const PINNED_TOP = ['jewellery_sub_category', 'net_weight_gm', 'stone_weight_g', 'polki_weight_g', 'cvd_weight_ct', 'stone_details']
+  const PINNED_TOP = [
+    'jewellery_sub_category', 'net_weight_gm', 'stone_weight_g', 'polki_weight_g',
+    'cvd_weight_ct', 'cvd_color', 'cvd_clarity', 'cvd_rate_override',
+    'diamond_color', 'diamond_clarity', 'diamond_rate_override',
+    'stone_details',
+  ]
   const pinnedMap  = Object.fromEntries(
     params.filter((p) => PINNED_TOP.includes(p.name)).map((p) => [p.name, p])
   )
@@ -547,9 +620,23 @@ export default function ProductForm({ categories, initialData, productId }: Prop
       {/* ── TOP: SKU, Category, pinned custom fields, metal fields, weights ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* SKU */}
-        <Field label="SKU *" error={errors.sku?.message}>
-          <input {...register('sku')} className={inputCls} />
-        </Field>
+        <div>
+          <Field label="SKU *" error={errors.sku?.message}>
+            <input {...register('sku')} className={inputCls} />
+          </Field>
+          <div className="flex items-center gap-2 mt-1.5">
+            <button
+              type="button"
+              onClick={suggestSku}
+              disabled={skuGenerating}
+              className="flex items-center gap-1.5 text-[11px] tracking-widest uppercase text-[#B8973A] border border-[#B8973A]/40 px-2.5 py-1 rounded hover:bg-amber-50 transition-colors disabled:opacity-50"
+            >
+              {skuGenerating ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+              Generate SKU
+            </button>
+            {skuGenError && <span className="text-[11px] text-red-500">{skuGenError}</span>}
+          </div>
+        </div>
 
         {/* Category */}
         <div>
@@ -597,19 +684,27 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         {/* Net Weight (pinned custom field) */}
         <PinnedField name="net_weight_gm" />
 
-        {/* Diamond Weight — built-in (ct, used for diamond rate in pricing) */}
+        {/* Diamond Weight — built-in */}
         <Field label="Diamond Weight (ct)">
-          <input {...register('stone_weight_ct')} type="number" step="any" min="0" className={inputCls} />
+          <input {...register('diamond_weight_ct')} type="number" step="any" min="0" className={inputCls} />
         </Field>
 
-        {/* Stone Weight in grams — custom field (used for stone labour in pricing) */}
+        {/* Diamond color / clarity / override — pinned custom fields */}
+        <PinnedField name="diamond_color" />
+        <PinnedField name="diamond_clarity" />
+        <PinnedField name="diamond_rate_override" />
+
+        {/* Stone Weight in grams — custom field (stone labour only) */}
         <PinnedField name="stone_weight_g" />
 
         {/* Polki Weight (pinned custom field) */}
         <PinnedField name="polki_weight_g" />
 
-        {/* CVD Weight (pinned custom field) */}
+        {/* CVD Weight + color / clarity / override */}
         <PinnedField name="cvd_weight_ct" />
+        <PinnedField name="cvd_color" />
+        <PinnedField name="cvd_clarity" />
+        <PinnedField name="cvd_rate_override" />
 
         {/* Stone Details (pinned custom field) */}
         <PinnedField name="stone_details" />
@@ -714,6 +809,36 @@ export default function ProductForm({ categories, initialData, productId }: Prop
             <p className="text-[10px] text-gray-400 mt-1">Auto = Selling Price × 2.5</p>
           </div>
         </div>
+
+        {/* OG Price Breakdown */}
+        {ogBreakdown.length > 0 && (
+          <div className="mx-4 mb-4 border border-gray-100 rounded-lg overflow-hidden">
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+              <p className="text-[10px] tracking-widest uppercase text-gray-400 font-medium">OG Price Breakdown</p>
+            </div>
+            <table className="w-full">
+              <tbody>
+                {ogBreakdown.map((line, i) => (
+                  <tr key={i} className={i % 2 === 1 ? 'bg-gray-50/50' : ''}>
+                    <td className="px-3 py-1.5 text-xs text-[#1A1714]">{line.label}</td>
+                    <td className="px-3 py-1.5 text-xs text-gray-400 text-right">{line.detail}</td>
+                    <td className="px-3 py-1.5 text-xs font-medium text-[#1A1714] text-right tabular-nums">
+                      ₹{line.amount.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-200">
+                  <td className="px-3 py-2 text-xs font-semibold text-[#B8973A]" colSpan={2}>Total OG</td>
+                  <td className="px-3 py-2 text-xs font-semibold text-[#B8973A] text-right tabular-nums">
+                    ₹{ogBreakdown.reduce((s, l) => s + l.amount, 0).toLocaleString('en-IN')}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
 
         {(ogOverridden || spOverridden) && (
           <div className="mx-4 mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-3 py-2 text-xs text-amber-700">

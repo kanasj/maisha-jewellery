@@ -14,7 +14,7 @@ const STANDARD_COLS = new Set([
   'metal_type', 'Metal Type',
   'metal_purity', 'Metal Purity',
   'stone_type', 'Stone Type', 'Primary Stone',
-  'stone_weight_ct', 'Stone Weight (ct)',
+  'diamond_weight_ct', 'Diamond Weight (ct)',
   'gross_weight_g', 'Gross Weight (g)',
   'price_inr', 'Price (INR)', 'Selling Price (INR)',
   'mrp_inr', 'MRP (INR)',
@@ -44,7 +44,7 @@ interface Row {
   metal_type?: string
   metal_purity?: string
   stone_type?: string
-  stone_weight_ct?: number
+  diamond_weight_ct?: number
   gross_weight_g?: number
   price_inr?: number
   mrp_inr?: number
@@ -119,7 +119,7 @@ export default function ImportPage() {
           metal_type:      str(r.metal_type ?? r['Metal Type']),
           metal_purity:    str(r.metal_purity ?? r['Metal Purity']),
           stone_type:      str(r.stone_type ?? r['Stone Type'] ?? r['Primary Stone']),
-          stone_weight_ct: num(r.stone_weight_ct ?? r['Stone Weight (ct)']),
+          diamond_weight_ct: num(r.diamond_weight_ct ?? r['Diamond Weight (ct)']),
           gross_weight_g:  num(r.gross_weight_g  ?? r['Gross Weight (g)']),
           price_inr:       num(r.price_inr ?? r['Price (INR)'] ?? r['Selling Price (INR)']),
           mrp_inr:         num(r.mrp_inr   ?? r['MRP (INR)']),

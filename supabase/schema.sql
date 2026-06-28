@@ -20,7 +20,7 @@ create table if not exists products (
   metal_type text,
   metal_purity text,
   stone_type text,
-  stone_weight_ct numeric(10,3),
+  diamond_weight_ct numeric(10,3),
   gross_weight_g numeric(10,3),
   price_inr numeric(12,2),
   mrp_inr numeric(12,2),

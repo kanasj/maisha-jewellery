@@ -69,8 +69,8 @@ export default function ProductDetail({
     detailRows.push({ label: 'Metal', value: `${product.metal_type}${purityStr ? ` (${purityStr})` : ''}` })
   if (subCatValue)
     detailRows.push({ label: subCatParam!.label, value: subCatValue })
-  if (builtinVisibility.show_stone && product.stone_weight_ct)
-    detailRows.push({ label: 'Diamond Weight', value: `${product.stone_weight_ct} ct` })
+  if (builtinVisibility.show_stone && product.diamond_weight_ct)
+    detailRows.push({ label: 'Diamond Weight', value: `${product.diamond_weight_ct} ct` })
   if (builtinVisibility.show_gross_weight && product.gross_weight_g)
     detailRows.push({ label: 'Gross Weight', value: `${product.gross_weight_g} g` })
   productParams

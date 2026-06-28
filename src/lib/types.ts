@@ -16,7 +16,7 @@ export interface Product {
   metal_type: string | null
   metal_purity: string | null
   stone_type: string | null
-  stone_weight_ct: number | null
+  diamond_weight_ct: number | null
   gross_weight_g: number | null
   og_price_inr: number | null
   price_inr: number | null

@@ -152,7 +152,7 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
           'Category':          (p.categories as { name?: string } | null)?.name ?? '',
           'Metal Type':        p.metal_type   ?? '',
           'Metal Purity':      p.metal_purity ?? '',
-          'Stone Weight (ct)': p.stone_weight_ct ?? '',
+          'Diamond Weight (ct)': p.diamond_weight_ct ?? '',
           'Gross Weight (g)':  p.gross_weight_g  ?? '',
           'Price (INR)':       p.price_inr    ?? '',
           'MRP (INR)':         p.mrp_inr      ?? '',
