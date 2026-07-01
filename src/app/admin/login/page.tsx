@@ -62,7 +62,6 @@ export default function AdminLogin() {
 
       // Exchange the token for a Supabase session
       const { error: otpError } = await supabase.auth.verifyOtp({
-        email:      verData.email,
         token_hash: verData.token_hash,
         type:       'magiclink',
       })
