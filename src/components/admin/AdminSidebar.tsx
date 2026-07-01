@@ -45,10 +45,11 @@ export default function AdminSidebar() {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   async function signOut() {
-    // Delete all passkeys for this user — forces email+password re-authentication next time
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user?.email) {
-      await supabase.from('admin_passkeys').delete().eq('user_email', user.email)
+    // Delete only this device's passkey so other devices keep working
+    const credId = sessionStorage.getItem('passkey_credential_id')
+    if (credId) {
+      await supabase.from('admin_passkeys').delete().eq('credential_id', credId)
+      sessionStorage.removeItem('passkey_credential_id')
     }
     await supabase.auth.signOut()
     router.push('/admin/login')

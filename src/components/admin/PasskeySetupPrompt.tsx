@@ -3,35 +3,34 @@ import { useState, useEffect } from 'react'
 import { startRegistration } from '@simplewebauthn/browser'
 import { ScanFace, X, Loader2, CheckCircle } from 'lucide-react'
 
+export const PASSKEY_CRED_KEY = 'passkey_credential_id'
+
 export default function PasskeySetupPrompt() {
-  const [show, setShow]         = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [done, setDone]         = useState(false)
-  const [error, setError]       = useState('')
+  const [show, setShow]       = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [done, setDone]       = useState(false)
+  const [error, setError]     = useState('')
 
   useEffect(() => {
-    // Check if a passkey is already registered
+    // Show prompt if no passkey exists (404) or if the check fails (unknown state)
     fetch('/api/passkey/auth-options', { method: 'POST' })
-      .then((r) => {
-        // 404 = no passkeys registered → show setup prompt
-        if (r.status === 404) setShow(true)
-      })
-      .catch(() => {})
+      .then((r) => { if (!r.ok) setShow(true) })
+      .catch(() => setShow(true))
   }, [])
 
   async function setupFaceId() {
     setLoading(true)
     setError('')
     try {
-      // Get registration options from server
       const optRes = await fetch('/api/passkey/register-options', { method: 'POST' })
-      if (!optRes.ok) throw new Error(await optRes.text())
+      if (!optRes.ok) {
+        const body = await optRes.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Failed to get registration options')
+      }
       const options = await optRes.json()
 
-      // Trigger browser Face ID / Touch ID prompt
       const credential = await startRegistration({ optionsJSON: options })
 
-      // Verify and store
       const verRes = await fetch('/api/passkey/register-verify', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,6 +40,9 @@ export default function PasskeySetupPrompt() {
         const { error: e } = await verRes.json()
         throw new Error(e)
       }
+
+      // Store this device's credential ID so logout can remove only this passkey
+      sessionStorage.setItem(PASSKEY_CRED_KEY, credential.id)
 
       setDone(true)
       setTimeout(() => setShow(false), 2000)
@@ -54,7 +56,8 @@ export default function PasskeySetupPrompt() {
   if (!show) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-80 bg-white border border-gray-200 rounded-xl shadow-xl p-5">
+    // full-width on mobile (avoids iOS safe-area clipping), card on desktop
+    <div className="fixed bottom-0 left-0 right-0 sm:bottom-6 sm:left-auto sm:right-6 sm:w-80 z-50 bg-white border-t sm:border border-gray-200 sm:rounded-xl shadow-xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5">
       <button
         onClick={() => setShow(false)}
         className="absolute top-3 right-3 text-gray-300 hover:text-gray-500"

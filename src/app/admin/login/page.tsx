@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { startAuthentication } from '@simplewebauthn/browser'
 import { Loader2, ScanFace } from 'lucide-react'
+import { PASSKEY_CRED_KEY } from '@/components/admin/PasskeySetupPrompt'
 
 export default function AdminLogin() {
   const [email, setEmail]           = useState('')
@@ -46,6 +47,9 @@ export default function AdminLogin() {
 
       // Trigger browser Face ID / Touch ID
       const credential = await startAuthentication({ optionsJSON: options })
+
+      // Remember which credential this device used (for device-scoped logout)
+      sessionStorage.setItem(PASSKEY_CRED_KEY, credential.id)
 
       // Verify on server — returns a magic link token
       const verRes = await fetch('/api/passkey/auth-verify', {
