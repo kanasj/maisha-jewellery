@@ -41,8 +41,9 @@ export default function PasskeySetupPrompt() {
         throw new Error(e)
       }
 
-      // Store this device's credential ID so logout can remove only this passkey
-      sessionStorage.setItem(PASSKEY_CRED_KEY, credential.id)
+      // Store this device's credential ID so logout can remove only this passkey.
+      // localStorage (not sessionStorage) so it survives tab/browser close on iOS Safari.
+      localStorage.setItem(PASSKEY_CRED_KEY, credential.id)
 
       setDone(true)
       setTimeout(() => setShow(false), 2000)

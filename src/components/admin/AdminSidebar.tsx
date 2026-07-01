@@ -46,10 +46,10 @@ export default function AdminSidebar() {
 
   async function signOut() {
     // Delete only this device's passkey so other devices keep working
-    const credId = sessionStorage.getItem('passkey_credential_id')
+    const credId = localStorage.getItem('passkey_credential_id')
     if (credId) {
       await supabase.from('admin_passkeys').delete().eq('credential_id', credId)
-      sessionStorage.removeItem('passkey_credential_id')
+      localStorage.removeItem('passkey_credential_id')
     }
     // Clear the browser-session cookie so middleware blocks re-entry
     document.cookie = 'admin_browser_session=; Max-Age=0; path=/'

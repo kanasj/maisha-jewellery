@@ -56,7 +56,7 @@ export default function AdminLogin() {
       const credential = await startAuthentication({ optionsJSON: options })
 
       // Remember which credential this device used (for device-scoped logout)
-      sessionStorage.setItem(PASSKEY_CRED_KEY, credential.id)
+      localStorage.setItem(PASSKEY_CRED_KEY, credential.id)
 
       // Verify on server — returns a magic link token
       const verRes = await fetch('/api/passkey/auth-verify', {
