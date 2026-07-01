@@ -14,8 +14,12 @@ export default function Navbar({ siteName }: { siteName: string }) {
   const [open, setOpen] = useState(false)
   return (
     <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur border-b border-[#E8E0D5]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-        <Link href="/" className="flex items-center gap-3 h-full py-2">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center h-16 gap-3">
+        {/* Hamburger on left for mobile */}
+        <button className="md:hidden flex-shrink-0" onClick={() => setOpen(!open)}>
+          {open ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <Link href="/" className="flex items-center gap-3 h-full py-2 flex-1">
           <div className="relative h-full aspect-square">
             <Image src="/logo.png" alt="Logo" fill className="object-contain" />
           </div>
@@ -30,9 +34,6 @@ export default function Navbar({ siteName }: { siteName: string }) {
             </Link>
           ))}
         </nav>
-        <button className="md:hidden" onClick={() => setOpen(!open)}>
-          {open ? <X size={22} /> : <Menu size={22} />}
-        </button>
       </div>
       {open && (
         <div className="md:hidden bg-[#FAF8F5] border-t border-[#E8E0D5] px-4 py-4 flex flex-col gap-4">

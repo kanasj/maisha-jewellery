@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, ProductParam } from '@/lib/types'
 import { calcPrice, calcPriceBreakdown, buildPricingParams, PRICING_PARAM_KEYS, type PricingParams, type DiamondRateRow, type PriceBreakdownLine } from '@/lib/pricing'
-import { Upload, X, Loader2, RefreshCw, AlertTriangle, Zap, Sparkles, ScanLine } from 'lucide-react'
+import { Upload, X, Loader2, RefreshCw, AlertTriangle, Zap, Sparkles, ScanLine, ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 
 const schema = z.object({
@@ -119,10 +119,50 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   const [skuGenError,   setSkuGenError]   = useState('')
 
   // ── Images ──────────────────────────────────────────────────────────────────
-  const [images, setImages]     = useState<string[]>(initialData?.images ?? [])
+  const [images, setImages]       = useState<string[]>(initialData?.images ?? [])
   const [uploading, setUploading] = useState(false)
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState('')
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [imgSaveState, setImgSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const imgSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  async function saveImageOrder(newImages: string[]) {
+    if (!productId) return
+    setImgSaveState('saving')
+    await supabase.from('products').update({ images: newImages }).eq('id', productId)
+    setImgSaveState('saved')
+    if (imgSaveTimer.current) clearTimeout(imgSaveTimer.current)
+    imgSaveTimer.current = setTimeout(() => setImgSaveState('idle'), 2500)
+  }
+
+  function moveImage(i: number, dir: -1 | 1) {
+    const j = i + dir
+    if (j < 0 || j >= images.length) return
+    const next = [...images]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    setImages(next)
+    saveImageOrder(next)
+  }
+
+  function handleDragStart(i: number) {
+    setDragIndex(i)
+  }
+
+  function handleDragOver(e: React.DragEvent, i: number) {
+    e.preventDefault()
+    if (dragIndex === null || dragIndex === i) return
+    const next = [...images]
+    const [moved] = next.splice(dragIndex, 1)
+    next.splice(i, 0, moved)
+    setImages(next)
+    setDragIndex(i)
+  }
+
+  function handleDragEnd() {
+    if (dragIndex !== null) saveImageOrder(images)
+    setDragIndex(null)
+  }
 
   // ── Custom fields ───────────────────────────────────────────────────────────
   const [params, setParams]         = useState<ProductParam[]>([])
@@ -174,7 +214,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
     setScanMsg(null)
     setCategoryHint(null)
     try {
-      const subCatOptions = params.find((p) => p.name === 'jewellery_sub_category')?.options ?? []
+      const subCatOptions = params.find((p) => p.name === 'stone_category')?.options ?? []
 
       const fd = new FormData()
       fd.append('tag_image', tagFile)
@@ -208,7 +248,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         ...(data.cvd_weight_ct        != null ? { cvd_weight_ct:        data.cvd_weight_ct }        : {}),
         ...(data.polki_weight_ct      != null ? { polki_weight_g:        data.polki_weight_ct }      : {}),
         ...(data.stone_details                ? { stone_details:        data.stone_details }         : {}),
-        ...(data.jewellery_sub_category       ? { jewellery_sub_category: data.jewellery_sub_category } : {}),
+        ...(data.stone_category       ? { stone_category: data.stone_category } : {}),
       }))
 
       if (data.og_price_inr != null) {
@@ -322,11 +362,11 @@ export default function ProductForm({ categories, initialData, productId }: Prop
 
   async function suggestSku() {
     setSkuGenError('')
-    const subCat  = String(customFields.jewellery_sub_category ?? '').trim()
+    const subCat  = String(customFields.stone_category ?? '').trim()
     const catName = categories.find((c) => c.id === watchedCategoryId)?.name ?? ''
 
     if (!catName)  { setSkuGenError('Set Category first'); return }
-    if (!subCat)   { setSkuGenError('Set Jewellery Sub Category first'); return }
+    if (!subCat)   { setSkuGenError('Set Stone Category first'); return }
 
     const catCode = subCatCode(catName)
     const jscCode = subCatCode(subCat)
@@ -479,7 +519,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
 
   // Fields pinned at the top (rendered inline, excluded from the main custom fields loop)
   const PINNED_TOP = [
-    'jewellery_sub_category', 'net_weight_gm', 'stone_weight_g', 'polki_weight_g',
+    'stone_category', 'net_weight_gm', 'stone_weight_g', 'polki_weight_g',
     'cvd_weight_ct', 'cvd_color', 'cvd_clarity', 'cvd_rate_override',
     'diamond_color', 'diamond_clarity', 'diamond_rate_override',
     'stone_details',
@@ -593,18 +633,66 @@ export default function ProductForm({ categories, initialData, productId }: Prop
 
       {/* ── Images ── */}
       <div>
-        <label className="text-xs tracking-widest uppercase text-gray-500 block mb-3">Images</label>
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-xs tracking-widest uppercase text-gray-500">Images</label>
+          {imgSaveState === 'saving' && (
+            <span className="flex items-center gap-1 text-[10px] text-gray-400"><Loader2 size={10} className="animate-spin" /> Saving order…</span>
+          )}
+          {imgSaveState === 'saved' && (
+            <span className="text-[10px] text-green-600">Order saved</span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-3">
           {images.map((url, i) => (
-            <div key={i} className="relative w-24 h-24 group">
+            <div
+              key={url}
+              draggable
+              onDragStart={() => handleDragStart(i)}
+              onDragOver={(e) => handleDragOver(e, i)}
+              onDragEnd={handleDragEnd}
+              className={`relative w-24 h-24 group cursor-grab active:cursor-grabbing transition-opacity ${dragIndex === i ? 'opacity-40' : 'opacity-100'}`}
+            >
               <Image src={url} alt={`Image ${i + 1}`} fill className="object-cover rounded border border-gray-200" sizes="96px" />
+
+              {/* Cover badge */}
+              {i === 0 && (
+                <span className="absolute bottom-0 left-0 right-0 bg-[#B8973A]/80 text-white text-[9px] tracking-widest uppercase text-center py-0.5 rounded-b pointer-events-none">
+                  Cover
+                </span>
+              )}
+
+              {/* Delete */}
               <button
                 type="button"
-                onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => {
+                  const next = images.filter((_, idx) => idx !== i)
+                  setImages(next)
+                  saveImageOrder(next)
+                }}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
               >
                 <X size={12} />
               </button>
+
+              {/* Arrow buttons */}
+              <div className="absolute bottom-0 left-0 right-0 flex justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 sm:flex transition-opacity z-10" style={i === 0 ? { bottom: '16px' } : {}}>
+                <button
+                  type="button"
+                  onClick={() => moveImage(i, -1)}
+                  disabled={i === 0}
+                  className="bg-black/50 text-white rounded w-5 h-5 flex items-center justify-center disabled:opacity-0 hover:bg-black/70 transition-colors"
+                >
+                  <ChevronLeft size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveImage(i, 1)}
+                  disabled={i === images.length - 1}
+                  className="bg-black/50 text-white rounded w-5 h-5 flex items-center justify-center disabled:opacity-0 hover:bg-black/70 transition-colors"
+                >
+                  <ChevronRight size={12} />
+                </button>
+              </div>
             </div>
           ))}
           <label className="w-24 h-24 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:border-[#B8973A] transition-colors rounded">
@@ -615,6 +703,9 @@ export default function ProductForm({ categories, initialData, productId }: Prop
             <input type="file" multiple accept="image/*" onChange={handleFiles} className="hidden" disabled={uploading} />
           </label>
         </div>
+        {images.length > 1 && (
+          <p className="text-[10px] text-gray-400 mt-2">Drag to reorder · First image is the storefront cover</p>
+        )}
       </div>
 
       {/* ── TOP: SKU, Category, pinned custom fields, metal fields, weights ── */}
@@ -655,8 +746,8 @@ export default function ProductForm({ categories, initialData, productId }: Prop
           )}
         </div>
 
-        {/* Jewellery Sub Category (pinned custom field) */}
-        <PinnedField name="jewellery_sub_category" />
+        {/* Stone Category (pinned custom field) */}
+        <PinnedField name="stone_category" />
 
         {/* Metal Type */}
         <Field label="Metal Type">

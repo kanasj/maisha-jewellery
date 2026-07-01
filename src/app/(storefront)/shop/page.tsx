@@ -6,7 +6,7 @@ import type { Category, Product } from '@/lib/types'
 export default async function ShopPage() {
   const supabase = createClient()
   const [{ data: products }, { data: categories }] = await Promise.all([
-    supabase.from('products').select('*, categories(name, slug)').eq('is_active', true).or('stock_qty.is.null,stock_qty.gt.0').order('created_at', { ascending: false }),
+    supabase.from('products').select('*, categories(name, slug)').eq('is_active', true).or('stock_qty.is.null,stock_qty.neq.0').order('created_at', { ascending: false }),
     supabase.from('categories').select('*').order('name'),
   ])
 

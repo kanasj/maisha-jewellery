@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 import BackButton from '@/components/admin/BackButton'
+import PasskeySetupPrompt from '@/components/admin/PasskeySetupPrompt'
 
 export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -18,6 +19,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           {children}
         </main>
       </div>
+      <PasskeySetupPrompt />
     </div>
   )
 }

@@ -2,13 +2,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, Tag, Upload, LogOut, Settings, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Tag, Upload, LogOut, Settings, Menu, X, ToggleLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 const links = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/item-status', label: 'Item Status', icon: ToggleLeft },
   { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/import', label: 'Bulk Import', icon: Upload },
   { href: '/admin/settings', label: 'Site Maintenance', icon: Settings },
@@ -44,6 +45,11 @@ export default function AdminSidebar() {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   async function signOut() {
+    // Delete all passkeys for this user — forces email+password re-authentication next time
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user?.email) {
+      await supabase.from('admin_passkeys').delete().eq('user_email', user.email)
+    }
     await supabase.auth.signOut()
     router.push('/admin/login')
   }

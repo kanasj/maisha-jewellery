@@ -25,7 +25,7 @@ const FILTER_FIELDS = [
   { label: 'Name',                    key: 'name',                    options: null },
   { label: 'SKU',                     key: 'sku',                     options: null },
   { label: 'Category',                key: 'category',                options: 'dynamic_category' as const },
-  { label: 'Jewellery Sub Category',  key: 'jewellery_sub_category',  options: 'dynamic_jsc' as const },
+  { label: 'Stone Category',  key: 'stone_category',  options: 'dynamic_jsc' as const },
   { label: 'Metal Type',              key: 'metal_type',              options: ['Gold', 'Silver', 'Platinum', 'Rose Gold'] },
   { label: 'Metal Purity',            key: 'metal_purity',            options: ['9K', '14K', '18K', '22K', '24K'] },
 ]
@@ -78,7 +78,7 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
   // Unique jewellery sub category values from custom_fields
   const jscOptions = useMemo(
     () => Array.from(new Set(
-      products.map((p) => String((p.custom_fields ?? {})['jewellery_sub_category'] ?? '')).filter(Boolean)
+      products.map((p) => String((p.custom_fields ?? {})['stone_category'] ?? '')).filter(Boolean)
     )).sort(),
     [products]
   )
@@ -101,10 +101,10 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
     const q = value.toLowerCase()
     if (field === 'name'                   && !p.name.toLowerCase().includes(q))                                                       return false
     if (field === 'sku'                    && !p.sku.toLowerCase().includes(q))                                                        return false
-    if (field === 'category'               && !(p.categories?.name ?? '').toLowerCase().includes(q))                                   return false
+    if (field === 'category'               && (p.categories?.name ?? '').toLowerCase() !== q)                                          return false
     if (field === 'metal_type'             && !(p.metal_type   ?? '').toLowerCase().includes(q))                                       return false
     if (field === 'metal_purity'           && !(p.metal_purity ?? '').toLowerCase().includes(q))                                       return false
-    if (field === 'jewellery_sub_category' && String((p.custom_fields ?? {})['jewellery_sub_category'] ?? '').toLowerCase() !== q)     return false
+    if (field === 'stone_category' && String((p.custom_fields ?? {})['stone_category'] ?? '').toLowerCase() !== q)     return false
     return true
   }
 
@@ -200,9 +200,9 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
         </button>
       </div>
 
-      {/* ── Filter + Download ── */}
-      <div className="flex flex-col gap-2 mb-6">
-        {/* Row 1: Filter 1 + Download */}
+      {/* ── Filters ── */}
+      <div className="flex flex-col gap-2 mb-3">
+        {/* Row 1: Filter 1 */}
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={filterField}
@@ -243,14 +243,6 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
               </div>
             )
           )}
-          <button
-            onClick={downloadExcel}
-            disabled={downloading}
-            className="flex items-center gap-2 border border-[#B8973A] text-[#B8973A] text-xs tracking-widest uppercase px-5 py-2.5 hover:bg-[#B8973A] hover:text-white transition-colors disabled:opacity-50 ml-auto"
-          >
-            {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-            {downloading ? 'Exporting…' : 'Download Excel'}
-          </button>
         </div>
 
         {/* Row 2: Filter 2 (always visible) */}
@@ -295,6 +287,18 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
             )
           )}
         </div>
+      </div>
+
+      {/* ── Download Excel (below both filters) ── */}
+      <div className="flex mb-6">
+        <button
+          onClick={downloadExcel}
+          disabled={downloading}
+          className="flex items-center gap-2 border border-[#B8973A] text-[#B8973A] text-xs tracking-widest uppercase px-5 py-2.5 hover:bg-[#B8973A] hover:text-white transition-colors disabled:opacity-50"
+        >
+          {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+          {downloading ? 'Exporting…' : 'Download Excel'}
+        </button>
       </div>
 
       {/* ── Mobile card list ── */}

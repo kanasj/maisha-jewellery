@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import FloatingWhatsApp from '@/components/FloatingWhatsApp'
 import { getSiteSettings, getFontUrl } from '@/lib/settings'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -27,7 +26,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         style={{ '--font-heading': `'${settings.heading_font}', serif` } as React.CSSProperties}
       >
         {children}
-        <FloatingWhatsApp />
       </body>
     </html>
   )

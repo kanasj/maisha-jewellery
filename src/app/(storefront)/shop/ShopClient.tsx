@@ -1,6 +1,6 @@
 'use client'
-import { useState, useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import ProductCard from '@/components/ProductCard'
 import StorefrontBackButton from '@/components/StorefrontBackButton'
 import type { Product, Category } from '@/lib/types'
@@ -12,20 +12,48 @@ interface Props {
 }
 
 const METAL_TYPES = ['Gold', 'Silver', 'Platinum', 'Rose Gold']
+const FILTERS_KEY = 'storefront_shop_filters'
+
+function readSession() {
+  try { return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? 'null') } catch { return null }
+}
 
 export default function ShopClient({ products, categories }: Props) {
   const searchParams = useSearchParams()
-  const [category, setCategory]         = useState(searchParams.get('category') ?? '')
-  const [jewellerySubCat, setJewellerySubCat] = useState('')
-  const [metal, setMetal]               = useState('')
-  const [priceMin, setPriceMin]         = useState('')
-  const [priceMax, setPriceMax]         = useState('')
-  const [filtersOpen, setFiltersOpen]   = useState(false)
+  const router       = useRouter()
+  const pathname     = usePathname()
 
-  // Unique Jewellery Sub Category values from product custom fields
+  // URL params take priority over sessionStorage on first load
+  const [category,       setCategory]       = useState(() => searchParams.get('category') || readSession()?.category || '')
+  const [jewellerySubCat, setJewellerySubCat] = useState(() => searchParams.get('jsc')      || readSession()?.jewellerySubCat || '')
+  const [metal,          setMetal]          = useState(() => searchParams.get('metal')    || readSession()?.metal || '')
+  const [priceMin,       setPriceMin]       = useState(() => searchParams.get('min')      || readSession()?.priceMin || '')
+  const [priceMax,       setPriceMax]       = useState(() => searchParams.get('max')      || readSession()?.priceMax || '')
+  const [filtersOpen,    setFiltersOpen]    = useState(() => readSession()?.filtersOpen ?? false)
+
+  // Keep URL and sessionStorage in sync whenever any filter changes
+  const syncFilters = useCallback((
+    cat: string, jsc: string, met: string, min: string, max: string
+  ) => {
+    const params = new URLSearchParams()
+    if (cat) params.set('category', cat)
+    if (jsc) params.set('jsc', jsc)
+    if (met) params.set('metal', met)
+    if (min) params.set('min', min)
+    if (max) params.set('max', max)
+    const qs = params.toString()
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false })
+  }, [router, pathname])
+
+  useEffect(() => {
+    syncFilters(category, jewellerySubCat, metal, priceMin, priceMax)
+    sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ category, jewellerySubCat, metal, priceMin, priceMax, filtersOpen }))
+  }, [category, jewellerySubCat, metal, priceMin, priceMax, filtersOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Unique Stone Category values from product custom fields
   const subCatOptions = useMemo(() => {
     const vals = products
-      .map((p) => String((p.custom_fields as Record<string, unknown>)?.jewellery_sub_category ?? ''))
+      .map((p) => String((p.custom_fields as Record<string, unknown>)?.stone_category ?? ''))
       .filter(Boolean)
     return Array.from(new Set(vals)).sort()
   }, [products])
@@ -36,7 +64,7 @@ export default function ShopClient({ products, categories }: Props) {
       if (category && prodSlug !== category) return false
       if (jewellerySubCat) {
         const cf = (p.custom_fields as Record<string, unknown>) ?? {}
-        if (String(cf.jewellery_sub_category ?? '') !== jewellerySubCat) return false
+        if (String(cf.stone_category ?? '') !== jewellerySubCat) return false
       }
       if (metal && p.metal_type?.toLowerCase() !== metal.toLowerCase()) return false
       if (priceMin && p.price_inr !== null && p.price_inr < Number(priceMin)) return false
@@ -46,6 +74,10 @@ export default function ShopClient({ products, categories }: Props) {
   }, [products, category, jewellerySubCat, metal, priceMin, priceMax])
 
   const activeCategory = categories.find((c) => c.slug === category)
+
+  function clearAll() {
+    setCategory(''); setJewellerySubCat(''); setMetal(''); setPriceMin(''); setPriceMax('')
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
@@ -82,10 +114,10 @@ export default function ShopClient({ products, categories }: Props) {
               </select>
             </div>
 
-            {/* Jewellery Sub Category — from custom fields */}
+            {/* Stone Category */}
             {subCatOptions.length > 0 && (
               <div>
-                <label className="text-xs tracking-widest uppercase text-[#1A1714]/50 block mb-1">Jewellery Sub Category</label>
+                <label className="text-xs tracking-widest uppercase text-[#1A1714]/50 block mb-1">Stone Category</label>
                 <select
                   value={jewellerySubCat}
                   onChange={(e) => setJewellerySubCat(e.target.value)}
@@ -139,7 +171,7 @@ export default function ShopClient({ products, categories }: Props) {
         <div className="text-center py-24">
           <p className="font-cormorant text-3xl text-[#1A1714]/30">No pieces found</p>
           <button
-            onClick={() => { setCategory(''); setJewellerySubCat(''); setMetal(''); setPriceMin(''); setPriceMax('') }}
+            onClick={clearAll}
             className="mt-4 text-xs tracking-widest uppercase text-[#B8973A] hover:underline"
           >
             Clear filters

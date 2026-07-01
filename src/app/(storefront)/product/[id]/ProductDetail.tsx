@@ -60,7 +60,7 @@ export default function ProductDetail({
     ? `${product.metal_type}${purityStr ? ` · ${purityStr}` : ''}`
     : null
 
-  const subCatParam = productParams.find((p) => p.visible_on_storefront && p.name === 'jewellery_sub_category')
+  const subCatParam = productParams.find((p) => p.visible_on_storefront && p.name === 'stone_category')
   const subCatValue = subCatParam ? String(product.custom_fields?.[subCatParam.name] ?? '') : ''
 
   // All detailed specs for the collapsible drawer
@@ -74,7 +74,7 @@ export default function ProductDetail({
   if (builtinVisibility.show_gross_weight && product.gross_weight_g)
     detailRows.push({ label: 'Gross Weight', value: `${product.gross_weight_g} g` })
   productParams
-    .filter((p) => p.visible_on_storefront && p.name !== 'jewellery_sub_category')
+    .filter((p) => p.visible_on_storefront && p.name !== 'stone_category')
     .forEach((p) => {
       const val = product.custom_fields?.[p.name]
       if (val === undefined || val === null || val === '') return

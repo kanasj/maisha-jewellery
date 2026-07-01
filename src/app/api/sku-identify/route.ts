@@ -67,9 +67,9 @@ From the jewelry type visible in the images or tag, pick the best matching categ
 JEWELLERY SUBCATEGORY — Available subcategory options:
 ${subcategoryList}
 
-Pick the best matching jewellery_sub_category value from the list above exactly as written.
-- If a clear match exists, set jewellery_sub_category to that exact string
-- If no match exists, set jewellery_sub_category to null
+Pick the best matching stone_category value from the list above exactly as written.
+- If a clear match exists, set stone_category to that exact string
+- If no match exists, set stone_category to null
 
 Return exactly this JSON shape (use null for unknown fields, empty array for unknown tags):
 {
@@ -87,7 +87,7 @@ Return exactly this JSON shape (use null for unknown fields, empty array for unk
   "og_price_inr": null,
   "category_id": null,
   "category_hint": null,
-  "jewellery_sub_category": null,
+  "stone_category": null,
   "tags": []
 }`
 }
