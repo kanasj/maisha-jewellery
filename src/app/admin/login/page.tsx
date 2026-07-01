@@ -23,6 +23,12 @@ export default function AdminLogin() {
       .catch(() => {})
   }, [])
 
+  function markBrowserSession() {
+    // Session cookie (no Max-Age) — cleared automatically when browser closes
+    const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+    document.cookie = `admin_browser_session=1; path=/; SameSite=Strict${secure}`
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -32,6 +38,7 @@ export default function AdminLogin() {
       setError(error.message)
       setLoading(false)
     } else {
+      markBrowserSession()
       router.push('/admin')
     }
   }
@@ -67,6 +74,7 @@ export default function AdminLogin() {
       })
       if (otpError) throw new Error(otpError.message)
 
+      markBrowserSession()
       router.push('/admin')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Face ID login failed')

@@ -51,6 +51,8 @@ export default function AdminSidebar() {
       await supabase.from('admin_passkeys').delete().eq('credential_id', credId)
       sessionStorage.removeItem('passkey_credential_id')
     }
+    // Clear the browser-session cookie so middleware blocks re-entry
+    document.cookie = 'admin_browser_session=; Max-Age=0; path=/'
     await supabase.auth.signOut()
     router.push('/admin/login')
   }
