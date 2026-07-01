@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 import BackButton from '@/components/admin/BackButton'
 import PasskeySetupPrompt from '@/components/admin/PasskeySetupPrompt'
+import AdminHeartbeat from '@/components/admin/AdminHeartbeat'
 
 export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -20,6 +21,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         </main>
       </div>
       <PasskeySetupPrompt />
+      <AdminHeartbeat />
     </div>
   )
 }

@@ -24,9 +24,9 @@ export default function AdminLogin() {
   }, [])
 
   function markBrowserSession() {
-    // Session cookie (no Max-Age) — cleared automatically when browser closes
+    // 3-minute cookie, kept alive by AdminHeartbeat pinging every 90s
     const secure = window.location.protocol === 'https:' ? '; Secure' : ''
-    document.cookie = `admin_browser_session=1; path=/; SameSite=Strict${secure}`
+    document.cookie = `admin_browser_session=1; Max-Age=180; path=/; SameSite=Strict${secure}`
   }
 
   async function handleSubmit(e: React.FormEvent) {
