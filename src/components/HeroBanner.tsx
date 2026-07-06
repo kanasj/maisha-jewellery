@@ -14,7 +14,7 @@ export default function HeroBanner({ banners }: { banners: string[] }) {
   }, [active_banners.length])
 
   return (
-    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-[#1A1714]">
+    <section className="relative flex items-center justify-center overflow-hidden bg-[#1A1714]" style={{ minHeight: '90vh' }}>
 
       {/* Banner images — crossfade */}
       {active_banners.length > 0 ? (
@@ -57,7 +57,7 @@ export default function HeroBanner({ banners }: { banners: string[] }) {
         <p className="text-xs tracking-[0.5em] uppercase text-[#B8973A] mb-6 font-inter">
           Handcrafted with Heritage
         </p>
-        <h1 className="font-cormorant text-6xl sm:text-8xl font-light text-white leading-tight mb-6 drop-shadow-lg">
+        <h1 className="font-cormorant text-6xl sm:text-7xl lg:text-8xl font-light text-white leading-tight mb-6 drop-shadow-lg">
           Timeless<br />
           <span className="italic text-[#B8973A]">Elegance</span>
         </h1>

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react' // eslint-disable-line @typescript-eslint/no-unused-vars
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import ProductCard from '@/components/ProductCard'
 import StorefrontBackButton from '@/components/StorefrontBackButton'
@@ -12,26 +12,22 @@ interface Props {
 }
 
 const METAL_TYPES = ['Gold', 'Silver', 'Platinum', 'Rose Gold']
-const FILTERS_KEY = 'storefront_shop_filters'
-
-function readSession() {
-  try { return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? 'null') } catch { return null }
-}
 
 export default function ShopClient({ products, categories }: Props) {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
 
-  // URL params take priority over sessionStorage on first load
-  const [category,       setCategory]       = useState(() => searchParams.get('category') || readSession()?.category || '')
-  const [jewellerySubCat, setJewellerySubCat] = useState(() => searchParams.get('jsc')      || readSession()?.jewellerySubCat || '')
-  const [metal,          setMetal]          = useState(() => searchParams.get('metal')    || readSession()?.metal || '')
-  const [priceMin,       setPriceMin]       = useState(() => searchParams.get('min')      || readSession()?.priceMin || '')
-  const [priceMax,       setPriceMax]       = useState(() => searchParams.get('max')      || readSession()?.priceMax || '')
-  const [filtersOpen,    setFiltersOpen]    = useState(() => readSession()?.filtersOpen ?? false)
+  // Initialise purely from URL — back button restores the URL so filters come back naturally.
+  // Fresh navigation from home/explore arrives with a clean URL so filters are always empty.
+  const [category,        setCategory]        = useState(() => searchParams.get('category') || '')
+  const [jewellerySubCat, setJewellerySubCat] = useState(() => searchParams.get('jsc')      || '')
+  const [metal,           setMetal]           = useState(() => searchParams.get('metal')    || '')
+  const [priceMin,        setPriceMin]        = useState(() => searchParams.get('min')      || '')
+  const [priceMax,        setPriceMax]        = useState(() => searchParams.get('max')      || '')
+  const [filtersOpen,     setFiltersOpen]     = useState(false)
 
-  // Keep URL and sessionStorage in sync whenever any filter changes
+  // Keep URL in sync whenever any filter changes
   const syncFilters = useCallback((
     cat: string, jsc: string, met: string, min: string, max: string
   ) => {
@@ -47,8 +43,7 @@ export default function ShopClient({ products, categories }: Props) {
 
   useEffect(() => {
     syncFilters(category, jewellerySubCat, metal, priceMin, priceMax)
-    sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ category, jewellerySubCat, metal, priceMin, priceMax, filtersOpen }))
-  }, [category, jewellerySubCat, metal, priceMin, priceMax, filtersOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [category, jewellerySubCat, metal, priceMin, priceMax]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Unique Stone Category values from product custom fields
   const subCatOptions = useMemo(() => {
@@ -100,9 +95,9 @@ export default function ShopClient({ products, categories }: Props) {
         </button>
 
         {filtersOpen && (
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+          <div className="mt-4 flex flex-wrap gap-4">
             {/* Category */}
-            <div>
+            <div className="flex-1" style={{ minWidth: '140px' }}>
               <label className="text-xs tracking-widest uppercase text-[#1A1714]/50 block mb-1">Category</label>
               <select
                 value={category}
@@ -116,7 +111,7 @@ export default function ShopClient({ products, categories }: Props) {
 
             {/* Stone Category */}
             {subCatOptions.length > 0 && (
-              <div>
+              <div className="flex-1" style={{ minWidth: '140px' }}>
                 <label className="text-xs tracking-widest uppercase text-[#1A1714]/50 block mb-1">Stone Category</label>
                 <select
                   value={jewellerySubCat}
@@ -130,7 +125,7 @@ export default function ShopClient({ products, categories }: Props) {
             )}
 
             {/* Metal */}
-            <div>
+            <div className="flex-1" style={{ minWidth: '140px' }}>
               <label className="text-xs tracking-widest uppercase text-[#1A1714]/50 block mb-1">Metal</label>
               <select
                 value={metal}
@@ -178,8 +173,12 @@ export default function ShopClient({ products, categories }: Props) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
+        <div className="flex flex-wrap -mx-3">
+          {filtered.map((p) => (
+            <div key={p.id} className="w-1/2 sm:w-1/3 lg:w-1/4 px-3 mb-6">
+              <ProductCard product={p} />
+            </div>
+          ))}
         </div>
       )}
     </div>

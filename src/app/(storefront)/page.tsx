@@ -41,27 +41,30 @@ export default async function HomePage() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-20">
           <p className="text-xs tracking-[0.4em] uppercase text-[#B8973A] text-center mb-3">Browse By</p>
           <h2 className="font-cormorant text-4xl text-center mb-12">Our Collections</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="flex flex-wrap -mx-2">
             {(categories as Category[]).map((cat) => (
-              <Link
-                key={cat.id}
-                href={`/shop?category=${cat.slug}`}
-                className="group relative aspect-[3/4] bg-[#F0EBE3] overflow-hidden flex items-end justify-center pb-6"
-              >
-                {(cat.image_url || catImageMap[cat.id]) && (
-                  <Image
-                    src={cat.image_url || catImageMap[cat.id]}
-                    alt={cat.name}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-700"
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1A1714]/60 to-transparent" />
-                <p className="relative z-10 font-cormorant text-xl text-white group-hover:text-[#B8973A] transition-colors">
-                  {cat.name}
-                </p>
-              </Link>
+              <div key={cat.id} className="w-1/2 sm:w-1/3 lg:w-1/4 px-2 mb-4">
+                <Link
+                  href={`/shop?category=${cat.slug}`}
+                  className="group relative block bg-[#F0EBE3] overflow-hidden"
+                >
+                  {/* 3:4 aspect ratio via padding-bottom — works on all browsers */}
+                  <div style={{ paddingBottom: '133.33%' }} />
+                  {(cat.image_url || catImageMap[cat.id]) && (
+                    <Image
+                      src={cat.image_url || catImageMap[cat.id]}
+                      alt={cat.name}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-700"
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1A1714]/60 to-transparent" />
+                  <p className="absolute bottom-6 left-0 right-0 text-center z-10 font-cormorant text-xl text-white group-hover:text-[#B8973A] transition-colors">
+                    {cat.name}
+                  </p>
+                </Link>
+              </div>
             ))}
           </div>
         </section>
@@ -72,9 +75,11 @@ export default async function HomePage() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-20 border-t border-[#E8E0D5]">
           <p className="text-xs tracking-[0.4em] uppercase text-[#B8973A] text-center mb-3">Handpicked</p>
           <h2 className="font-cormorant text-4xl text-center mb-12">Featured Pieces</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="flex flex-wrap -mx-3">
             {(featured as Product[]).map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <div key={p.id} className="w-1/2 md:w-1/3 lg:w-1/4 px-3 mb-6">
+                <ProductCard product={p} />
+              </div>
             ))}
           </div>
           <div className="text-center mt-12">

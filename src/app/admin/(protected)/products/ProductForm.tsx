@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -40,6 +40,23 @@ interface Props {
 }
 
 const inputCls = 'w-full border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-[#B8973A] transition-colors rounded'
+
+function PinnedField({ name, pinnedMap, renderInput }: {
+  name: string
+  pinnedMap: Record<string, ProductParam>
+  renderInput: (p: ProductParam) => React.ReactNode
+}) {
+  const p = pinnedMap[name]
+  if (!p) return null
+  return (
+    <div className={p.field_type === 'textarea' ? 'col-span-2' : ''}>
+      <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">
+        {p.label}{p.is_required && <span className="text-red-400 ml-1">*</span>}
+      </label>
+      {renderInput(p)}
+    </div>
+  )
+}
 
 function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
   return (
@@ -529,20 +546,6 @@ export default function ProductForm({ categories, initialData, productId }: Prop
   )
   const remainingParams = params.filter((p) => !PINNED_TOP.includes(p.name))
 
-  // Helper to render a pinned field as a grid cell (returns null if param not defined yet)
-  function PinnedField({ name }: { name: string }) {
-    const p = pinnedMap[name]
-    if (!p) return null
-    return (
-      <div className={p.field_type === 'textarea' ? 'col-span-2' : ''}>
-        <label className="text-xs tracking-widest uppercase text-gray-500 block mb-1">
-          {p.label}{p.is_required && <span className="text-red-400 ml-1">*</span>}
-        </label>
-        {renderCustomFieldInput(p)}
-      </div>
-    )
-  }
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-8">
       {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded border border-red-100">{error}</p>}
@@ -747,7 +750,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </div>
 
         {/* Stone Category (pinned custom field) */}
-        <PinnedField name="stone_category" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="stone_category" />
 
         {/* Metal Type */}
         <Field label="Metal Type">
@@ -773,7 +776,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </Field>
 
         {/* Net Weight (pinned custom field) */}
-        <PinnedField name="net_weight_gm" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="net_weight_gm" />
 
         {/* Diamond Weight — built-in */}
         <Field label="Diamond Weight (ct)">
@@ -781,24 +784,24 @@ export default function ProductForm({ categories, initialData, productId }: Prop
         </Field>
 
         {/* Diamond color / clarity / override — pinned custom fields */}
-        <PinnedField name="diamond_color" />
-        <PinnedField name="diamond_clarity" />
-        <PinnedField name="diamond_rate_override" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="diamond_color" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="diamond_clarity" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="diamond_rate_override" />
 
         {/* Stone Weight in grams — custom field (stone labour only) */}
-        <PinnedField name="stone_weight_g" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="stone_weight_g" />
 
         {/* Polki Weight (pinned custom field) */}
-        <PinnedField name="polki_weight_g" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="polki_weight_g" />
 
         {/* CVD Weight + color / clarity / override */}
-        <PinnedField name="cvd_weight_ct" />
-        <PinnedField name="cvd_color" />
-        <PinnedField name="cvd_clarity" />
-        <PinnedField name="cvd_rate_override" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="cvd_weight_ct" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="cvd_color" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="cvd_clarity" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="cvd_rate_override" />
 
         {/* Stone Details (pinned custom field) */}
-        <PinnedField name="stone_details" />
+        <PinnedField pinnedMap={pinnedMap} renderInput={renderCustomFieldInput} name="stone_details" />
       </div>
 
       {/* Remaining custom fields (not pinned at top) */}

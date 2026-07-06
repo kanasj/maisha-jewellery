@@ -7,7 +7,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const image = product.images?.[0] ?? null
   return (
     <Link href={`/product/${product.id}`} className="group block">
-      <div className="aspect-square overflow-hidden bg-[#F0EBE3] mb-3 relative">
+      <div className="overflow-hidden bg-[#F0EBE3] mb-3 relative" style={{ paddingBottom: '100%' }}>
         {image ? (
           <Image
             src={image}
@@ -17,7 +17,7 @@ export default function ProductCard({ product }: { product: Product }) {
             sizes="(max-width: 768px) 50vw, 25vw"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center">
             <span className="font-cormorant text-4xl text-[#B8973A]/30">K</span>
           </div>
         )}
