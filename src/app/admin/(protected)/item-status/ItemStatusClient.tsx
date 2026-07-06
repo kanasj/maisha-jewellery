@@ -2,7 +2,8 @@
 import { useState, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, History, X, CheckSquare, Square, User } from 'lucide-react'
+import { Loader2, History, X, CheckSquare, Square, User, FileDown } from 'lucide-react'
+import jsPDF from 'jspdf'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -15,8 +16,17 @@ interface ItemProduct {
   is_active: boolean
   metal_type?: string | null
   metal_purity?: string | null
+  price_inr?: number | null
+  gross_weight_g?: number | null
+  diamond_weight_ct?: number | null
   custom_fields?: Record<string, unknown> | null
   categories?: { name: string } | null
+}
+
+interface BuiltinVisibility {
+  show_metal: boolean
+  show_stone: boolean
+  show_gross_weight: boolean
 }
 
 interface Customer {
@@ -56,39 +66,304 @@ const STATUS_STYLES: Record<StockStatus, string> = {
 }
 
 const FILTER_FIELDS = [
-  { label: 'Name',                   key: 'name',                   options: null },
-  { label: 'SKU',                    key: 'sku',                    options: null },
-  { label: 'Category',               key: 'category',               options: 'dynamic_category' as const },
+  { label: 'Name',           key: 'name',           options: null },
+  { label: 'SKU',            key: 'sku',            options: null },
+  { label: 'Category',       key: 'category',       options: 'dynamic_category' as const },
   { label: 'Stone Category', key: 'stone_category', options: 'dynamic_jsc' as const },
-  { label: 'Metal Type',             key: 'metal_type',             options: ['Gold', 'Silver', 'Platinum', 'Rose Gold'] },
+  { label: 'Metal Type',     key: 'metal_type',     options: ['Gold', 'Silver', 'Platinum', 'Rose Gold'] },
 ]
+
+
+
+// ─── PDF generation ───────────────────────────────────────────────────────────
+
+interface ImageInfo {
+  dataUrl: string
+  width: number
+  height: number
+}
+
+async function fetchImageInfo(url: string): Promise<ImageInfo | null> {
+  try {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+    const { width, height } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const img = new window.Image()
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+      img.onerror = reject
+      img.src = dataUrl
+    })
+    return { dataUrl, width, height }
+  } catch {
+    return null
+  }
+}
+
+// Fixed display order for the PDF
+const PDF_FIELD_ORDER: Array<
+  | { kind: 'builtin'; key: 'category' | 'metal' | 'gross_weight' | 'diamond_weight' | 'price' }
+  | { kind: 'custom';  name: string; label: string }
+> = [
+  { kind: 'builtin', key: 'category' },
+  { kind: 'custom',  name: 'stone_category', label: 'Stone Category' },
+  { kind: 'builtin', key: 'metal' },
+  { kind: 'builtin', key: 'gross_weight' },
+  { kind: 'custom',  name: 'net_weight_gm',  label: 'Net Weight (g)' },
+  { kind: 'builtin', key: 'diamond_weight' },
+  { kind: 'custom',  name: 'diamond_clarity', label: 'Diamond Clarity' },
+  { kind: 'custom',  name: 'diamond_color',   label: 'Diamond Color' },
+  { kind: 'custom',  name: 'stone_weight_g',  label: 'Stone Weight (g)' },
+  { kind: 'custom',  name: 'polki_weight_g',  label: 'Polki Weight (g)' },
+  { kind: 'builtin', key: 'price' },
+]
+
+async function generateItemPDF(
+  selectedProducts: ItemProduct[],
+  action: 'out_of_stock' | 'on_approval',
+  customerName: string,
+  notes: string,
+  visibleCustomParams: string[],
+  builtinVisibility: BuiltinVisibility,
+) {
+  // Fetch all product images in parallel (with dimensions for aspect-ratio-correct rendering)
+  const imageMap: Record<string, ImageInfo> = {}
+  await Promise.all(
+    selectedProducts.map(async (p) => {
+      const url = p.images?.[0]
+      if (!url) return
+      const info = await fetchImageInfo(url)
+      if (info) imageMap[p.id] = info
+    })
+  )
+
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const PW = 210, PH = 297, M = 15
+  const CW = PW - 2 * M        // 180 mm content width
+  const GOLD: [number, number, number]  = [184, 151, 58]
+  const DARK: [number, number, number]  = [26, 23, 20]
+  const MGRAY: [number, number, number] = [100, 100, 100]
+  const LGRAY: [number, number, number] = [210, 210, 210]
+
+  // ── Header ──────────────────────────────────────────────────────────────────
+  let y = M + 6
+
+  // Brand name
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(22)
+  pdf.setTextColor(...GOLD)
+  pdf.text('MAISHA JEWELLERY', M, y)
+
+  // Action label (right-aligned)
+  pdf.setFontSize(9)
+  pdf.setTextColor(...DARK)
+  const actionLabel = action === 'on_approval' ? 'ON APPROVAL RECEIPT' : 'ITEMS MARKED AS SOLD'
+  pdf.text(actionLabel, PW - M, y, { align: 'right' })
+
+  y += 8
+
+  // Gold separator
+  pdf.setDrawColor(...GOLD)
+  pdf.setLineWidth(0.6)
+  pdf.line(M, y, PW - M, y)
+  y += 5
+
+  // Meta line: date, customer, notes
+  const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(...MGRAY)
+  pdf.text(`Date: ${dateStr}`, M, y)
+  pdf.text(`Customer: ${customerName || '—'}`, M + 70, y)
+  y += 5
+
+  if (notes) {
+    pdf.text(`Notes: ${notes}`, M, y)
+    y += 5
+  }
+
+  // Item count
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8)
+  pdf.setTextColor(...DARK)
+  pdf.text(`${selectedProducts.length} item${selectedProducts.length !== 1 ? 's' : ''}`, M, y)
+  y += 6
+
+  // Second separator
+  pdf.setDrawColor(...LGRAY)
+  pdf.setLineWidth(0.3)
+  pdf.line(M, y, PW - M, y)
+  y += 6
+
+  // ── Products ─────────────────────────────────────────────────────────────────
+  // 45mm image → 4 products fit per page even on page 1 (after header)
+  const IMG = 45             // image size mm
+  const GAP = 6              // gap between image and details
+  const DX  = M + IMG + GAP  // details column X
+  const DW  = CW - IMG - GAP // details column width
+  const LW  = 34             // label column width
+  const VX  = DX + LW       // value column X
+  const VW  = DW - LW       // value column width
+
+  // Print a label+value row; returns the new ty position
+  const drawField = (ty: number, label: string, value: string | null | undefined): number => {
+    if (value === null || value === undefined) return ty
+    const str = String(value).trim()
+    if (!str || str === '0') return ty
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(6.5)
+    pdf.setTextColor(...MGRAY)
+    pdf.text(label, DX, ty)
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7.5)
+    pdf.setTextColor(...DARK)
+    const lines = pdf.splitTextToSize(str, VW)
+    pdf.text(lines, VX, ty)
+
+    return ty + Math.max(lines.length * 4, 4.5)
+  }
+
+  for (let i = 0; i < selectedProducts.length; i++) {
+    const p = selectedProducts[i]
+
+    // Page break: ensure at least IMG height fits
+    if (y + IMG + 8 > PH - M) {
+      pdf.addPage()
+      y = M + 6
+    }
+
+    const rowStartY = y
+
+    // ── Image column (contain-fit: preserve aspect ratio, no stretch) ──
+    const imgInfo = imageMap[p.id]
+    if (imgInfo) {
+      try {
+        const aspect = imgInfo.width / imgInfo.height
+        let drawW = IMG, drawH = IMG
+        if (aspect > 1) {
+          drawH = IMG / aspect
+        } else {
+          drawW = IMG * aspect
+        }
+        const offsetX = M + (IMG - drawW) / 2
+        const offsetY = y + (IMG - drawH) / 2
+        pdf.addImage(imgInfo.dataUrl, offsetX, offsetY, drawW, drawH)
+      } catch {
+        pdf.setDrawColor(...LGRAY)
+        pdf.setLineWidth(0.3)
+        pdf.rect(M, y, IMG, IMG)
+      }
+    } else {
+      pdf.setDrawColor(...LGRAY)
+      pdf.setLineWidth(0.3)
+      pdf.rect(M, y, IMG, IMG)
+    }
+
+    // ── Details column ──
+    let ty = y + 2.5
+
+    // Product name
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.setTextColor(...DARK)
+    const nameLines = pdf.splitTextToSize(p.name, DW)
+    pdf.text(nameLines, DX, ty)
+    ty += nameLines.length * 4.5 + 1
+
+    // SKU
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7)
+    pdf.setTextColor(...MGRAY)
+    pdf.text(`SKU: ${p.sku}`, DX, ty)
+    ty += 4.5
+
+    // Render fields in fixed order, respecting visibility settings
+    const cf = p.custom_fields ?? {}
+    for (const fieldDef of PDF_FIELD_ORDER) {
+      if (fieldDef.kind === 'builtin') {
+        if (fieldDef.key === 'category' && p.categories?.name) {
+          ty = drawField(ty, 'Category', p.categories.name)
+        } else if (fieldDef.key === 'metal' && builtinVisibility.show_metal) {
+          const metalStr = [p.metal_type, p.metal_purity].filter(Boolean).join(' ')
+          if (metalStr) ty = drawField(ty, 'Metal', metalStr)
+        } else if (fieldDef.key === 'gross_weight' && builtinVisibility.show_gross_weight && p.gross_weight_g) {
+          ty = drawField(ty, 'Gross Weight', `${p.gross_weight_g} g`)
+        } else if (fieldDef.key === 'diamond_weight' && builtinVisibility.show_stone && p.diamond_weight_ct) {
+          ty = drawField(ty, 'Diamond Wt.', `${p.diamond_weight_ct} ct`)
+        } else if (fieldDef.key === 'price' && p.price_inr) {
+          ty = drawField(ty, 'Price', `Rs. ${p.price_inr.toLocaleString('en-IN')}`)
+        }
+      } else {
+        if (!visibleCustomParams.includes(fieldDef.name)) continue
+        const val = cf[fieldDef.name]
+        if (val === null || val === undefined || String(val).trim() === '' || String(val) === '0' || val === false) continue
+        ty = drawField(ty, fieldDef.label, String(val))
+      }
+    }
+
+    // Row separator — below whichever is taller (image or text)
+    const rowH = Math.max(IMG + 3, ty - rowStartY + 3)
+    y = rowStartY + rowH
+
+    if (i < selectedProducts.length - 1) {
+      pdf.setDrawColor(...LGRAY)
+      pdf.setLineWidth(0.3)
+      pdf.line(M, y, PW - M, y)
+      y += 4
+    }
+  }
+
+  // ── Footer on every page ──────────────────────────────────────────────────
+  const totalPages = (pdf as unknown as { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages()
+  for (let pg = 1; pg <= totalPages; pg++) {
+    pdf.setPage(pg)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7)
+    pdf.setTextColor(...LGRAY)
+    pdf.text(`Maisha Jewellery  ·  ${dateStr}  ·  Page ${pg} of ${totalPages}`, PW / 2, PH - 8, { align: 'center' })
+  }
+
+  const slug = action === 'on_approval' ? 'on-approval' : 'out-of-stock'
+  const dateSuffix = new Date().toISOString().slice(0, 10)
+  pdf.save(`maisha-${slug}-${dateSuffix}.pdf`)
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ItemStatusClient({
   initialProducts,
   initialCustomers,
+  visibleCustomParams,
+  builtinVisibility,
 }: {
   initialProducts: ItemProduct[]
   initialCustomers: Customer[]
+  visibleCustomParams: string[]
+  builtinVisibility: BuiltinVisibility
 }) {
   const supabase = createClient()
 
-  // ── Products state ──
   const [products, setProducts]  = useState(initialProducts)
   const [customers, setCustomers] = useState(initialCustomers)
 
-  // ── Filters (mirroring ProductsTable) ──
+  // Filters
   const [statusTab,    setStatusTab]    = useState<'all' | StockStatus>('all')
   const [filterField,  setFilterField]  = useState('')
   const [filterValue,  setFilterValue]  = useState('')
   const [filterField2, setFilterField2] = useState('')
   const [filterValue2, setFilterValue2] = useState('')
 
-  // ── Selection ──
+  // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  // ── Pending action ──
+  // Pending action
   type Action = 'out_of_stock' | 'on_approval' | 'in_stock' | null
   const [pendingAction, setPendingAction] = useState<Action>(null)
   const [customerQuery, setCustomerQuery] = useState('')
@@ -97,9 +372,10 @@ export default function ItemStatusClient({
   const [actionNotes, setActionNotes] = useState('')
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState('')
+  const [pdfGenerating, setPdfGenerating] = useState(false)
   const customerInputRef = useRef<HTMLInputElement>(null)
 
-  // ── History ──
+  // History
   const [historyProductId, setHistoryProductId] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -127,10 +403,10 @@ export default function ItemStatusClient({
   function matchesFilter(p: ItemProduct, field: string, value: string): boolean {
     if (!field || !value) return true
     const q = value.toLowerCase()
-    if (field === 'name'                   && !p.name.toLowerCase().includes(q)) return false
-    if (field === 'sku'                    && !p.sku.toLowerCase().includes(q))  return false
-    if (field === 'category'               && (p.categories?.name ?? '').toLowerCase() !== q) return false
-    if (field === 'metal_type'             && !(p.metal_type ?? '').toLowerCase().includes(q)) return false
+    if (field === 'name'           && !p.name.toLowerCase().includes(q)) return false
+    if (field === 'sku'            && !p.sku.toLowerCase().includes(q))  return false
+    if (field === 'category'       && (p.categories?.name ?? '').toLowerCase() !== q) return false
+    if (field === 'metal_type'     && !(p.metal_type ?? '').toLowerCase().includes(q)) return false
     if (field === 'stone_category' && String((p.custom_fields ?? {})['stone_category'] ?? '').toLowerCase() !== q) return false
     return true
   }
@@ -147,7 +423,7 @@ export default function ItemStatusClient({
 
   const counts = useMemo(() => ({
     all:          products.filter((p) => matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
-    in_stock:     products.filter((p) => getStatus(p) === 'in_stock'    && matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
+    in_stock:     products.filter((p) => getStatus(p) === 'in_stock'     && matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
     out_of_stock: products.filter((p) => getStatus(p) === 'out_of_stock' && matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
     on_approval:  products.filter((p) => getStatus(p) === 'on_approval'  && matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
   }), [products, filterField, filterValue, filterField2, filterValue2]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -190,6 +466,18 @@ export default function ItemStatusClient({
     setApplyError('')
   }
 
+  // ─── Download PDF ─────────────────────────────────────────────────────────
+  async function handleDownloadPDF() {
+    if (!pendingAction || pendingAction === 'in_stock') return
+    const selectedProducts = products.filter((p) => selected.has(p.id))
+    setPdfGenerating(true)
+    try {
+      await generateItemPDF(selectedProducts, pendingAction, customerQuery.trim(), actionNotes.trim(), visibleCustomParams, builtinVisibility)
+    } finally {
+      setPdfGenerating(false)
+    }
+  }
+
   // ─── Apply action ─────────────────────────────────────────────────────────
   async function applyAction() {
     if (!pendingAction || selected.size === 0) return
@@ -201,13 +489,11 @@ export default function ItemStatusClient({
     setApplyError('')
 
     try {
-      // Resolve or create customer
       let customerId: string | null = null
       if (pendingAction === 'on_approval' || pendingAction === 'out_of_stock') {
         if (selectedCustomer && selectedCustomer.name.toLowerCase() === customerQuery.toLowerCase()) {
           customerId = selectedCustomer.id
         } else {
-          // Create new customer
           const { data: newCust, error: custErr } = await supabase
             .from('customers')
             .insert({ name: customerQuery.trim(), notes: actionNotes.trim() || null })
@@ -219,19 +505,15 @@ export default function ItemStatusClient({
         }
       }
 
-      // Determine new stock_qty
       const newQty = pendingAction === 'in_stock' ? 1 : pendingAction === 'on_approval' ? -1 : 0
-
       const ids = Array.from(selected)
 
-      // Update stock_qty on all selected products
       const { error: updateErr } = await supabase
         .from('products')
         .update({ stock_qty: newQty })
         .in('id', ids)
       if (updateErr) throw updateErr
 
-      // Write history rows
       const historyRows = ids.map((pid) => ({
         product_id:  pid,
         customer_id: customerId,
@@ -241,7 +523,6 @@ export default function ItemStatusClient({
       const { error: histErr } = await supabase.from('item_history').insert(historyRows)
       if (histErr) throw histErr
 
-      // Update local state
       setProducts((prev) =>
         prev.map((p) => selected.has(p.id) ? { ...p, stock_qty: newQty } : p)
       )
@@ -298,7 +579,6 @@ export default function ItemStatusClient({
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap gap-3 mb-6">
-        {/* Filter 1 */}
         <select
           value={filterField}
           onChange={(e) => { setFilterField(e.target.value); setFilterValue('') }}
@@ -333,7 +613,6 @@ export default function ItemStatusClient({
           </button>
         )}
 
-        {/* Filter 2 */}
         <select
           value={filterField2}
           onChange={(e) => { setFilterField2(e.target.value); setFilterValue2('') }}
@@ -401,7 +680,6 @@ export default function ItemStatusClient({
                     isSelected ? 'bg-amber-50' : 'hover:bg-gray-50'
                   }`}
                 >
-                  {/* Checkbox */}
                   <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => toggleOne(p.id)}>
                       {isSelected
@@ -410,7 +688,6 @@ export default function ItemStatusClient({
                     </button>
                   </div>
 
-                  {/* Thumb */}
                   {p.images?.[0] ? (
                     <div className="w-10 h-10 relative flex-shrink-0 rounded overflow-hidden">
                       <Image src={p.images[0]} alt={p.name} fill className="object-cover" sizes="40px" />
@@ -421,18 +698,15 @@ export default function ItemStatusClient({
                     </div>
                   )}
 
-                  {/* Details */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[#1A1714] truncate">{p.name}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{p.sku} · {p.categories?.name ?? '—'}</p>
                   </div>
 
-                  {/* Status badge */}
                   <span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded flex-shrink-0 ${STATUS_STYLES[status]}`}>
                     {STATUS_LABELS[status]}
                   </span>
 
-                  {/* History button */}
                   <button
                     onClick={(e) => { e.stopPropagation(); openHistory(p.id) }}
                     className="flex-shrink-0 text-gray-300 hover:text-[#B8973A] transition-colors p-1"
@@ -498,7 +772,6 @@ export default function ItemStatusClient({
 
             {(pendingAction === 'out_of_stock' || pendingAction === 'on_approval') && (
               <div className="space-y-3 mb-5">
-                {/* Customer autocomplete */}
                 <div>
                   <label className="text-xs tracking-widest uppercase text-gray-400 block mb-1">Customer Name *</label>
                   <div className="relative">
@@ -541,6 +814,19 @@ export default function ItemStatusClient({
                     className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-[#B8973A]"
                   />
                 </div>
+
+                {/* PDF download button */}
+                <button
+                  type="button"
+                  onClick={handleDownloadPDF}
+                  disabled={pdfGenerating}
+                  className="w-full flex items-center justify-center gap-2 border border-[#B8973A] text-[#B8973A] text-xs tracking-widest uppercase py-2.5 rounded hover:bg-amber-50 transition-colors disabled:opacity-50"
+                >
+                  {pdfGenerating
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <FileDown size={13} />}
+                  {pdfGenerating ? 'Generating PDF…' : 'Download PDF'}
+                </button>
               </div>
             )}
 
