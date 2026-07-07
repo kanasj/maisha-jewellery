@@ -410,7 +410,17 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
             </Link>
             <div className="flex-1 min-w-0">
               <Link href={`/product/${p.id}`} target="_blank" className="font-medium text-sm text-[#1A1714] truncate hover:text-[#B8973A] transition-colors block">{p.name}</Link>
-              <p className="text-xs text-gray-400 font-mono mt-0.5">{p.sku}</p>
+              <p className="text-xs text-gray-400 font-mono mt-0.5">
+                {p.sku}
+                {(() => {
+                  const net = parseFloat(String((p.custom_fields ?? {})['net_weight_gm'] ?? ''))
+                  const gross = p.gross_weight_g
+                  const parts = []
+                  if (!isNaN(net) && net)  parts.push(`N ${net}g`)
+                  if (gross) parts.push(`G ${gross}g`)
+                  return parts.length ? <span className="ml-2 text-gray-400">{parts.join(' · ')}</span> : null
+                })()}
+              </p>
               <div className="flex items-center gap-2 mt-1.5">
                 <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                   {p.is_active ? 'Active' : 'Inactive'}
@@ -447,6 +457,7 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
               <th className="text-left px-4 py-3 text-xs tracking-widest uppercase text-gray-500 font-normal">Product</th>
               <th className="text-left px-4 py-3 text-xs tracking-widest uppercase text-gray-500 font-normal">SKU</th>
               <th className="text-left px-4 py-3 text-xs tracking-widest uppercase text-gray-500 font-normal">Category</th>
+              <th className="text-left px-4 py-3 text-xs tracking-widest uppercase text-gray-500 font-normal">Weight</th>
               <th className="text-left px-4 py-3 text-xs tracking-widest uppercase text-gray-500 font-normal">Price</th>
               <th className="text-left px-4 py-3 text-xs tracking-widest uppercase text-gray-500 font-normal">Stock</th>
               <th className="text-left px-4 py-3 text-xs tracking-widest uppercase text-gray-500 font-normal">Status</th>
@@ -464,6 +475,19 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
                 </td>
                 <td className="px-4 py-3 text-gray-500 font-mono text-xs">{p.sku}</td>
                 <td className="px-4 py-3 text-gray-500">{p.categories?.name ?? '—'}</td>
+                <td className="px-4 py-3">
+                  {(() => {
+                    const net = parseFloat(String((p.custom_fields ?? {})['net_weight_gm'] ?? ''))
+                    const gross = p.gross_weight_g
+                    if (!net && !gross) return <span className="text-gray-300">—</span>
+                    return (
+                      <div className="text-xs leading-relaxed text-gray-500">
+                        {!isNaN(net)  && net  ? <div><span className="text-gray-400">N</span> {net}g</div>  : null}
+                        {gross ? <div><span className="text-gray-400">G</span> {gross}g</div> : null}
+                      </div>
+                    )
+                  })()}
+                </td>
                 <td className="px-4 py-3">{p.price_inr ? formatPrice(p.price_inr) : '—'}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${isInStock(p) ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'}`}>
