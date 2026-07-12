@@ -3,9 +3,10 @@ import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import { Pencil, Trash2, Download, Loader2, X, ExternalLink } from 'lucide-react'
+import { Pencil, Trash2, Download, Loader2, X, ExternalLink, BookOpen } from 'lucide-react'
 
 interface AdminProduct {
   id: string
@@ -18,6 +19,7 @@ interface AdminProduct {
   metal_type?: string | null
   metal_purity?: string | null
   gross_weight_g?: number | null
+  diamond_weight_ct?: number | null
   custom_fields?: Record<string, unknown> | null
   categories?: { name: string } | null
 }
@@ -87,6 +89,244 @@ function getWeightValue(p: { custom_fields?: Record<string, unknown> | null; gro
   return null
 }
 
+// ─── Catalog PDF ─────────────────────────────────────────────────────────────
+
+interface CatalogImageInfo { dataUrl: string; width: number; height: number }
+
+async function fetchCatalogImage(url: string): Promise<CatalogImageInfo | null> {
+  try {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+    const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const img = new window.Image()
+      img.onload  = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+      img.onerror = reject
+      img.src = dataUrl
+    })
+    return { dataUrl, ...dims }
+  } catch { return null }
+}
+
+// Field order for catalog PDF (same as invoice, no price)
+const CATALOG_FIELD_ORDER: Array<
+  | { kind: 'builtin'; key: 'metal' | 'gross_weight' | 'diamond_weight' }
+  | { kind: 'custom';  name: string; label: string }
+> = [
+  { kind: 'custom',  name: 'stone_category', label: 'Stone Cat.' },
+  { kind: 'builtin', key: 'metal' },
+  { kind: 'builtin', key: 'gross_weight' },
+  { kind: 'custom',  name: 'net_weight_gm',  label: 'Net Wt. (g)' },
+  { kind: 'builtin', key: 'diamond_weight' },
+  { kind: 'custom',  name: 'diamond_clarity', label: 'Dia. Clarity' },
+  { kind: 'custom',  name: 'diamond_color',   label: 'Dia. Color' },
+  { kind: 'custom',  name: 'cvd_weight_ct',   label: 'CVD Wt. (ct)' },
+  { kind: 'custom',  name: 'cvd_clarity',     label: 'CVD Clarity' },
+  { kind: 'custom',  name: 'cvd_color',       label: 'CVD Color' },
+  { kind: 'custom',  name: 'stone_weight_g',  label: 'Stone Wt. (g)' },
+  { kind: 'custom',  name: 'polki_weight_g',  label: 'Polki Wt. (g)' },
+]
+
+async function generateCatalogPDF(products: AdminProduct[]) {
+  // Fetch built-in field visibility settings (custom fields shown regardless — this is an admin doc)
+  const supabase = createClient()
+  const { data: settings } = await supabase
+    .from('site_settings').select('key, value').in('key', ['show_metal', 'show_stone', 'show_gross_weight'])
+  const settingsMap = Object.fromEntries((settings ?? []).map((r) => [r.key, r.value]))
+  const builtinVis = {
+    show_metal:        settingsMap['show_metal']        !== 'false',
+    show_stone:        settingsMap['show_stone']        !== 'false',
+    show_gross_weight: settingsMap['show_gross_weight'] !== 'false',
+  }
+
+  // Sort: category → stone_category → name
+  const sorted = [...products].sort((a, b) => {
+    const catA = (a.categories?.name ?? '').toLowerCase()
+    const catB = (b.categories?.name ?? '').toLowerCase()
+    if (catA !== catB) return catA.localeCompare(catB)
+    const scA = String((a.custom_fields ?? {})['stone_category'] ?? '').toLowerCase()
+    const scB = String((b.custom_fields ?? {})['stone_category'] ?? '').toLowerCase()
+    if (scA !== scB) return scA.localeCompare(scB)
+    return a.name.localeCompare(b.name)
+  })
+
+  // Fetch all images in parallel
+  const imageMap: Record<string, CatalogImageInfo> = {}
+  await Promise.all(sorted.map(async (p) => {
+    const url = p.images?.[0]
+    if (!url) return
+    const info = await fetchCatalogImage(url)
+    if (info) imageMap[p.id] = info
+  }))
+
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const PW = 210, PH = 297
+  const ML = 12, MR = 12, MT = 12, MB = 10
+  const GOLD:  [number,number,number] = [184, 151, 58]
+  const DARK:  [number,number,number] = [26, 23, 20]
+  const MGRAY: [number,number,number] = [100, 100, 100]
+  const LGRAY: [number,number,number] = [210, 210, 210]
+
+  const HEADER_H = 32
+  const FOOTER_H = 8
+  const COL_GAP  = 6
+  const COL_W    = (PW - ML - MR - COL_GAP) / 2   // 90mm
+  const ROWS     = 4
+  const ROW_H    = (PH - MT - MB - HEADER_H - FOOTER_H) / ROWS  // ~58mm
+  const PHOTO    = 44   // smaller photo → more text space
+  const DX_OFF   = PHOTO + 5
+  const DW       = COL_W - DX_OFF   // ~41mm
+
+  const COL_X = [ML, ML + COL_W + COL_GAP]
+
+  const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  function drawHeader(pageNum: number, totalPages: number) {
+    // Extra top padding before brand name
+    let hy = MT + 10
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(16)
+    pdf.setTextColor(...GOLD)
+    pdf.text('MAISHA JEWELLERY', ML, hy)
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8)
+    pdf.setTextColor(...DARK)
+    pdf.text('STOCK INVENTORY', PW - MR, hy, { align: 'right' })
+
+    hy += 6
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7)
+    pdf.setTextColor(...MGRAY)
+    pdf.text(dateStr, ML, hy)
+    pdf.text(`Page ${pageNum} of ${totalPages}`, PW - MR, hy, { align: 'right' })
+
+    hy += 6
+    pdf.setDrawColor(...GOLD)
+    pdf.setLineWidth(0.5)
+    pdf.line(ML, hy, PW - MR, hy)
+  }
+
+  let page = 1
+  drawHeader(1, 1)
+
+  const contentStartY = MT + HEADER_H
+
+  for (let i = 0; i < sorted.length; i++) {
+    const col       = i % 2
+    const rowInPage = Math.floor((i % (ROWS * 2)) / 2)
+
+    if (i > 0 && i % (ROWS * 2) === 0) {
+      page++
+      pdf.addPage()
+      drawHeader(page, 1)
+    }
+
+    const cellX   = COL_X[col]
+    const cellY   = contentStartY + rowInPage * ROW_H
+    const maxTy   = cellY + ROW_H - 2   // clamp text to cell
+
+    // Photo (contain-fit, centred in PHOTO×PHOTO cell)
+    const imgInfo = imageMap[sorted[i].id]
+    if (imgInfo) {
+      try {
+        const aspect = imgInfo.width / imgInfo.height
+        let dw = PHOTO, dh = PHOTO
+        if (aspect > 1) { dh = PHOTO / aspect } else { dw = PHOTO * aspect }
+        pdf.addImage(imgInfo.dataUrl, cellX + (PHOTO - dw) / 2, cellY + (PHOTO - dh) / 2, dw, dh)
+      } catch {
+        pdf.setDrawColor(...LGRAY); pdf.setLineWidth(0.2); pdf.rect(cellX, cellY, PHOTO, PHOTO)
+      }
+    } else {
+      pdf.setDrawColor(...LGRAY); pdf.setLineWidth(0.2); pdf.rect(cellX, cellY, PHOTO, PHOTO)
+    }
+
+    // Details — helper that takes/returns ty and respects the cell clamp
+    const p  = sorted[i]
+    const tx = cellX + DX_OFF
+    let   ty = cellY + 5   // top padding inside cell
+
+    // label (gray) + value (dark) on ONE line
+    const drawField = (curTy: number, label: string, value: string | null | undefined): number => {
+      const str = String(value ?? '').trim()
+      if (!str || str === '0' || str === 'false') return curTy
+      if (curTy + 4 > maxTy) return curTy
+      pdf.setFontSize(6.5)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor(...MGRAY)
+      const labelStr = label + ' '
+      pdf.text(labelStr, tx, curTy)
+      const lw = pdf.getTextWidth(labelStr)
+      pdf.setTextColor(...DARK)
+      const valLines = pdf.splitTextToSize(str, DW - lw)
+      pdf.text(valLines[0], tx + lw, curTy)  // first line only — keeps it on one line
+      return curTy + 4
+    }
+
+    // Name (bold, wraps if long)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7.5)
+    pdf.setTextColor(...DARK)
+    const nameLines = pdf.splitTextToSize(p.name, DW)
+    pdf.text(nameLines, tx, ty)
+    ty += nameLines.length * 4 + 0.5
+
+    // SKU
+    if (ty < maxTy) {
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(6.5)
+      pdf.setTextColor(...MGRAY)
+      pdf.text(p.sku, tx, ty)
+      ty += 4.5
+    }
+
+    // All fields in order — catalog is internal admin doc, no storefront visibility filter
+    const cf = p.custom_fields ?? {}
+    for (const fDef of CATALOG_FIELD_ORDER) {
+      if (ty >= maxTy) break
+      if (fDef.kind === 'custom') {
+        ty = drawField(ty, fDef.label, String(cf[fDef.name] ?? ''))
+      } else if (fDef.key === 'metal' && builtinVis.show_metal) {
+        const metal = [p.metal_type, p.metal_purity].filter(Boolean).join(' ')
+        ty = drawField(ty, 'Metal', metal || null)
+      } else if (fDef.key === 'gross_weight' && builtinVis.show_gross_weight) {
+        ty = drawField(ty, 'Gross Wt. (g)', p.gross_weight_g ? String(p.gross_weight_g) : null)
+      } else if (fDef.key === 'diamond_weight' && builtinVis.show_stone) {
+        ty = drawField(ty, 'Dia. Wt. (ct)', p.diamond_weight_ct ? String(p.diamond_weight_ct) : null)
+      }
+    }
+
+    // Row separator line
+    const rowBottom = cellY + ROW_H
+    pdf.setDrawColor(...LGRAY)
+    pdf.setLineWidth(0.2)
+    pdf.line(ML, rowBottom, PW - MR, rowBottom)
+  }
+
+  // Re-draw headers with correct page count, add footers
+  const totalPages = page
+  for (let pg = 1; pg <= totalPages; pg++) {
+    pdf.setPage(pg)
+    pdf.setFillColor(255, 255, 255)
+    pdf.rect(0, 0, PW, MT + HEADER_H, 'F')
+    drawHeader(pg, totalPages)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(6.5)
+    pdf.setTextColor(...LGRAY)
+    pdf.text('Maisha Jewellery  ·  Confidential', PW / 2, PH - 4, { align: 'center' })
+  }
+
+  const date = new Date().toISOString().slice(0, 10)
+  pdf.save(`maisha-inventory-${date}.pdf`)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function ProductsTable({ initialProducts }: { initialProducts: AdminProduct[] }) {
   const [products, setProducts]       = useState(initialProducts)
   const [stockTab, setStockTab]         = useState<'in' | 'out'>(() => readFilters()?.stockTab ?? 'in')
@@ -98,7 +338,8 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
   const [filterValue2, setFilterValue2] = useState<string>(() => readFilters()?.filterValue2 ?? '')
   const [filterMin2,  setFilterMin2]    = useState<string>(() => readFilters()?.filterMin2 ?? '')
   const [filterMax2,  setFilterMax2]    = useState<string>(() => readFilters()?.filterMax2 ?? '')
-  const [downloading, setDownloading]   = useState(false)
+  const [downloading, setDownloading]       = useState(false)
+  const [catalogPdfing, setCatalogPdfing]   = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -389,8 +630,8 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
         </div>
       </div>
 
-      {/* ── Download Excel (below both filters) ── */}
-      <div className="flex mb-6">
+      {/* ── Action buttons ── */}
+      <div className="flex gap-3 mb-6 flex-wrap">
         <button
           onClick={downloadExcel}
           disabled={downloading}
@@ -398,6 +639,14 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
         >
           {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
           {downloading ? 'Exporting…' : 'Download Excel'}
+        </button>
+        <button
+          onClick={async () => { setCatalogPdfing(true); try { await generateCatalogPDF(filtered) } finally { setCatalogPdfing(false) } }}
+          disabled={catalogPdfing || filtered.length === 0}
+          className="flex items-center gap-2 border border-gray-400 text-gray-600 text-xs tracking-widest uppercase px-5 py-2.5 hover:bg-gray-100 transition-colors disabled:opacity-50"
+        >
+          {catalogPdfing ? <Loader2 size={13} className="animate-spin" /> : <BookOpen size={13} />}
+          {catalogPdfing ? 'Generating…' : `Catalog PDF (${filtered.length})`}
         </button>
       </div>
 
