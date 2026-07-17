@@ -738,22 +738,24 @@ export default function ItemStatusClient({
               <X size={16} />
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button
-              onClick={() => setPendingAction('out_of_stock')}
-              className="py-2.5 text-xs tracking-widest uppercase border border-gray-300 rounded hover:border-gray-500 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              Mark Out of Stock
-            </button>
-            <button
-              onClick={() => setPendingAction('on_approval')}
-              className="py-2.5 text-xs tracking-widest uppercase bg-amber-50 border border-amber-300 rounded hover:bg-amber-100 text-amber-700 transition-colors"
-            >
-              Send on Approval
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPendingAction('out_of_stock')}
+                className="py-2 text-xs tracking-widest uppercase border border-gray-300 rounded hover:border-gray-500 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Out of Stock
+              </button>
+              <button
+                onClick={() => setPendingAction('on_approval')}
+                className="py-2 text-xs tracking-widest uppercase bg-amber-50 border border-amber-300 rounded hover:bg-amber-100 text-amber-700 transition-colors"
+              >
+                On Approval
+              </button>
+            </div>
             <button
               onClick={() => setPendingAction('in_stock')}
-              className="py-2.5 text-xs tracking-widest uppercase bg-green-50 border border-green-300 rounded hover:bg-green-100 text-green-700 transition-colors"
+              className="w-full py-2 text-xs tracking-widest uppercase bg-green-50 border border-green-300 rounded hover:bg-green-100 text-green-700 transition-colors"
             >
               Return to Stock
             </button>
