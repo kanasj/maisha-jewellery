@@ -825,7 +825,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Stock Qty">
-          <input {...register('stock_qty')} type="number" min="0" className={inputCls} />
+          <input {...register('stock_qty')} type="number" min="-1" className={inputCls} />
         </Field>
         <Field label="Tags (comma separated)">
           <input {...register('tags')} placeholder="bridal, gift, trending" className={inputCls} />
