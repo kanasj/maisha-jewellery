@@ -39,6 +39,14 @@ function isInStock(p: AdminProduct) {
   return p.stock_qty === null || p.stock_qty > 0
 }
 
+function isOnApproval(p: AdminProduct) {
+  return p.stock_qty === -1
+}
+
+function isOutOfStock(p: AdminProduct) {
+  return p.stock_qty === 0
+}
+
 function ProductThumb({ product }: { product: AdminProduct }) {
   return product.images?.[0] ? (
     <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden rounded">
@@ -329,7 +337,7 @@ async function generateCatalogPDF(products: AdminProduct[]) {
 
 export default function ProductsTable({ initialProducts }: { initialProducts: AdminProduct[] }) {
   const [products, setProducts]       = useState(initialProducts)
-  const [stockTab, setStockTab]         = useState<'in' | 'out'>(() => readFilters()?.stockTab ?? 'in')
+  const [stockTab, setStockTab]         = useState<'in' | 'out' | 'approval'>(() => readFilters()?.stockTab ?? 'in')
   const [filterField, setFilterField]   = useState<string>(() => readFilters()?.filterField ?? '')
   const [filterValue, setFilterValue]   = useState<string>(() => readFilters()?.filterValue ?? '')
   const [filterMin,   setFilterMin]     = useState<string>(() => readFilters()?.filterMin  ?? '')
@@ -408,13 +416,15 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
            matchesFilter(p, filterField2, filterValue2, filterMin2, filterMax2)
   }
 
-  const inStockCount  = products.filter((p) =>  isInStock(p) && matchesFieldFilter(p)).length
-  const outStockCount = products.filter((p) => !isInStock(p) && matchesFieldFilter(p)).length
+  const inStockCount   = products.filter((p) =>  isInStock(p)    && matchesFieldFilter(p)).length
+  const outStockCount  = products.filter((p) =>  isOutOfStock(p) && matchesFieldFilter(p)).length
+  const approvalCount  = products.filter((p) =>  isOnApproval(p) && matchesFieldFilter(p)).length
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
-      if (stockTab === 'in'  && !isInStock(p)) return false
-      if (stockTab === 'out' &&  isInStock(p)) return false
+      if (stockTab === 'in'       && !isInStock(p))    return false
+      if (stockTab === 'out'      && !isOutOfStock(p)) return false
+      if (stockTab === 'approval' && !isOnApproval(p)) return false
       if (!matchesFieldFilter(p)) return false
       return true
     })
@@ -463,8 +473,9 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
       }
 
       const viewProducts = allProducts.filter((p) => {
-        if (stockTab === 'in'  && !(p.stock_qty === null || p.stock_qty > 0)) return false
-        if (stockTab === 'out' &&   (p.stock_qty === null || p.stock_qty > 0)) return false
+        if (stockTab === 'in'       && !(p.stock_qty === null || p.stock_qty > 0)) return false
+        if (stockTab === 'out'      && p.stock_qty !== 0)                           return false
+        if (stockTab === 'approval' && p.stock_qty !== -1)                          return false
         return applyFilter(p, filterField, filterValue, filterMin, filterMax) &&
                applyFilter(p, filterField2, filterValue2, filterMin2, filterMax2)
       })
@@ -526,6 +537,12 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
           className={`px-4 py-1.5 text-xs tracking-widest uppercase rounded transition-colors ${stockTab === 'out' ? 'bg-red-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}
         >
           Out of Stock <span className="ml-1 opacity-70">({outStockCount})</span>
+        </button>
+        <button
+          onClick={() => setStockTab('approval')}
+          className={`px-4 py-1.5 text-xs tracking-widest uppercase rounded transition-colors ${stockTab === 'approval' ? 'bg-amber-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          On Approval <span className="ml-1 opacity-70">({approvalCount})</span>
         </button>
       </div>
 
@@ -674,8 +691,8 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
                 <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                   {p.is_active ? 'Active' : 'Inactive'}
                 </span>
-                <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${isInStock(p) ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'}`}>
-                  {isInStock(p) ? `${p.stock_qty ?? '∞'} in stock` : 'Out of stock'}
+                <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${isOnApproval(p) ? 'bg-amber-50 text-amber-600' : isInStock(p) ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'}`}>
+                  {isOnApproval(p) ? 'On Approval' : isInStock(p) ? `${p.stock_qty ?? '∞'} in stock` : 'Out of stock'}
                 </span>
                 {p.price_inr && <span className="text-xs text-gray-500">{formatPrice(p.price_inr)}</span>}
               </div>
@@ -739,8 +756,8 @@ export default function ProductsTable({ initialProducts }: { initialProducts: Ad
                 </td>
                 <td className="px-4 py-3">{p.price_inr ? formatPrice(p.price_inr) : '—'}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${isInStock(p) ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'}`}>
-                    {isInStock(p) ? (p.stock_qty !== null ? p.stock_qty : '∞') : 'Out of stock'}
+                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${isOnApproval(p) ? 'bg-amber-50 text-amber-600' : isInStock(p) ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'}`}>
+                    {isOnApproval(p) ? 'On Approval' : isInStock(p) ? (p.stock_qty !== null ? p.stock_qty : '∞') : 'Out of stock'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
