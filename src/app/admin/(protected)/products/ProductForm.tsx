@@ -479,7 +479,7 @@ export default function ProductForm({ categories, initialData, productId }: Prop
           type="number"
           step="any"
           value={String(customFields[p.name] ?? '')}
-          onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value === '' ? '' : Number(e.target.value) }))}
+          onChange={(e) => setCustomFields((prev) => ({ ...prev, [p.name]: e.target.value }))}
           className={inputCls}
         />
       )
