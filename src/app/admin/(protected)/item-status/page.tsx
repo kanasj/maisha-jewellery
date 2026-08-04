@@ -6,7 +6,7 @@ export default async function ItemStatusPage() {
   const [{ data: products }, { data: customers }, { data: params }, { data: settings }] = await Promise.all([
     supabase
       .from('products')
-      .select('id, name, sku, images, stock_qty, is_active, metal_type, metal_purity, price_inr, gross_weight_g, diamond_weight_ct, custom_fields, categories!left(name)')
+      .select('id, name, sku, images, stock_qty, item_status, is_active, metal_type, metal_purity, price_inr, gross_weight_g, diamond_weight_ct, custom_fields, categories!left(name)')
       .order('name', { ascending: true }),
     supabase.from('customers').select('id, name, notes').order('name', { ascending: true }),
     supabase.from('product_params').select('name, visible_on_storefront'),

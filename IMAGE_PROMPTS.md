@@ -142,13 +142,15 @@ You are a professional jewellery product photographer. I will provide you with a
 
 **Critical rules — do not break these under any circumstances:**
 
-1. **Stone count is fixed.** Count every polki, kundan, diamond, and gemstone visible on the bracelet. The recreated bracelet must show the exact same number of stones in the exact same positions. Not one more, not one fewer.
-2. **Shape of every gold piece and kundan setting is fixed.** Study the exact outline of every link, motif, border, clasp, and kundan cell. Replicate all shapes precisely. Do not simplify links, merge cells, or alter the clasp design.
-3. **Link and segment count is fixed.** Count the number of visible links or segments. The recreated bracelet must show the same count — do not add or remove links.
-4. **Color and finish are fixed.** The metal color, stone colors, polki texture, and any enamel must exactly match the original. Do not alter any material or finish.
-5. **Design and structure are fixed.** The overall length, width, clasp style, and arrangement must remain identical.
+1. **Charm and motif count is fixed.** Count every charm, medallion, pendant, and decorative element on the bracelet. The recreated bracelet must show the exact same number in the exact same positions — not one more, not one fewer. If the original has one central medallion, the output must have exactly one. Do not duplicate, mirror, or add any charm or motif.
+2. **Every charm's design is fixed.** Study the exact design on each charm — every symbol, pattern, engraving, and color. Reproduce it precisely as-is. Do not alter, simplify, or reinterpret any symbol (e.g. an Om symbol must remain a single Om symbol, not be repeated or redrawn differently).
+3. **Stone count is fixed.** Count every polki, kundan, diamond, and gemstone visible on the bracelet. The recreated bracelet must show the exact same number of stones in the exact same positions. Not one more, not one fewer.
+4. **Clasp and extension chain are fixed.** Replicate the exact clasp type (lobster, toggle, box, etc.) and any extension chain exactly as shown — same position, same length, same style. Do not omit, move, or redesign either end hardware.
+5. **Cord, chain, or band structure is fixed.** Replicate the exact braid pattern, link style, or band material and color. Do not change the weave, texture, color, or width.
+6. **Color and finish are fixed.** The metal color, cord color, stone colors, and any enamel or paint must exactly match the original. Do not alter any material or finish.
+7. **Overall design and structure are fixed.** The total length, width, charm placement, and all proportions must remain identical to the original.
 
-**Output format:** 1200 × 1200 px square image. Clean white or off-white studio background. Lay the bracelet flat, curved, or coiled in a way that fills the square frame well and shows all link, stone, and clasp detail clearly. Soft even lighting with no harsh shadows, sharp focus across the full piece including the clasp.
+**Output format:** 1200 × 1200 px square image. Clean white or off-white studio background. Lay the bracelet flat, curved, or coiled in a way that fills the square frame well and shows the charm, cord/chain, and both end clasps clearly. Soft even lighting with no harsh shadows, sharp focus across the full piece including both ends.
 
 Recreate the bracelet shown in the original image following all rules above.
 

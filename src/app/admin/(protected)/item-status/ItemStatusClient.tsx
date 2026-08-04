@@ -13,6 +13,7 @@ interface ItemProduct {
   sku: string
   images: string[]
   stock_qty: number | null
+  item_status: StockStatus
   is_active: boolean
   metal_type?: string | null
   metal_purity?: string | null
@@ -40,29 +41,38 @@ interface HistoryRow {
   status: 'in_stock' | 'out_of_stock' | 'on_approval'
   notes: string | null
   created_at: string
+  qty_changed: number | null
   customers: { name: string } | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-type StockStatus = 'in_stock' | 'out_of_stock' | 'on_approval'
+type StockStatus = 'in_stock' | 'out_of_stock' | 'on_approval' | 'partial_approval'
 
 function getStatus(p: ItemProduct): StockStatus {
-  if (p.stock_qty === -1) return 'on_approval'
-  if (p.stock_qty === 0)  return 'out_of_stock'
-  return 'in_stock'
+  return p.item_status
+}
+
+// partial_approval appears under both in_stock and on_approval tabs
+function matchesTab(status: StockStatus, tab: 'all' | StockStatus): boolean {
+  if (tab === 'all') return true
+  if (tab === 'in_stock')    return status === 'in_stock'    || status === 'partial_approval'
+  if (tab === 'on_approval') return status === 'on_approval' || status === 'partial_approval'
+  return status === tab
 }
 
 const STATUS_LABELS: Record<StockStatus, string> = {
-  in_stock:    'In Stock',
-  out_of_stock:'Out of Stock',
-  on_approval: 'On Approval',
+  in_stock:         'In Stock',
+  out_of_stock:     'Out of Stock',
+  on_approval:      'On Approval',
+  partial_approval: 'Partial Approval',
 }
 
 const STATUS_STYLES: Record<StockStatus, string> = {
-  in_stock:    'bg-green-50 text-green-700 border border-green-100',
-  out_of_stock:'bg-gray-100 text-gray-500 border border-gray-200',
-  on_approval: 'bg-amber-50 text-amber-700 border border-amber-200',
+  in_stock:         'bg-green-50 text-green-700 border border-green-100',
+  out_of_stock:     'bg-gray-100 text-gray-500 border border-gray-200',
+  on_approval:      'bg-amber-50 text-amber-700 border border-amber-200',
+  partial_approval: 'bg-blue-50 text-blue-700 border border-blue-200',
 }
 
 const FILTER_FIELDS = [
@@ -123,7 +133,6 @@ const PDF_FIELD_ORDER: Array<
   { kind: 'custom',  name: 'cvd_color',       label: 'CVD Color' },
   { kind: 'custom',  name: 'stone_weight_g',  label: 'Stone Weight (g)' },
   { kind: 'custom',  name: 'polki_weight_g',  label: 'Polki Weight (g)' },
-  { kind: 'builtin', key: 'price' },
 ]
 
 async function generateItemPDF(
@@ -131,6 +140,7 @@ async function generateItemPDF(
   action: 'out_of_stock' | 'on_approval',
   customerName: string,
   notes: string,
+  pieceCount: number,
   visibleCustomParams: string[],
   builtinVisibility: BuiltinVisibility,
 ) {
@@ -280,11 +290,12 @@ async function generateItemPDF(
     pdf.text(nameLines, DX, ty)
     ty += nameLines.length * 4.5 + 1
 
-    // SKU
+    // SKU + Qty
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7)
     pdf.setTextColor(...MGRAY)
-    pdf.text(`SKU: ${p.sku}`, DX, ty)
+    const qtyLabel = action === 'on_approval' ? 'pcs on approval' : 'pcs sold'
+    pdf.text(`SKU: ${p.sku}   ·   ${pieceCount} ${qtyLabel}`, DX, ty)
     ty += 4.5
 
     // Render fields in fixed order, respecting visibility settings
@@ -373,6 +384,7 @@ export default function ItemStatusClient({
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [actionNotes, setActionNotes] = useState('')
+  const [pieceCount, setPieceCount] = useState('1')
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
@@ -416,20 +428,22 @@ export default function ItemStatusClient({
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
-      const s = getStatus(p)
-      if (statusTab !== 'all' && s !== statusTab) return false
+      if (!matchesTab(getStatus(p), statusTab))          return false
       if (!matchesFilter(p, filterField, filterValue))   return false
       if (!matchesFilter(p, filterField2, filterValue2)) return false
       return true
     })
   }, [products, statusTab, filterField, filterValue, filterField2, filterValue2]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const counts = useMemo(() => ({
-    all:          products.filter((p) => matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
-    in_stock:     products.filter((p) => getStatus(p) === 'in_stock'     && matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
-    out_of_stock: products.filter((p) => getStatus(p) === 'out_of_stock' && matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
-    on_approval:  products.filter((p) => getStatus(p) === 'on_approval'  && matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)).length,
-  }), [products, filterField, filterValue, filterField2, filterValue2]) // eslint-disable-line react-hooks/exhaustive-deps
+  const counts = useMemo(() => {
+    const visible = (p: ItemProduct) => matchesFilter(p, filterField, filterValue) && matchesFilter(p, filterField2, filterValue2)
+    return {
+      all:          products.filter(visible).length,
+      in_stock:     products.filter((p) => matchesTab(getStatus(p), 'in_stock')     && visible(p)).length,
+      out_of_stock: products.filter((p) => matchesTab(getStatus(p), 'out_of_stock') && visible(p)).length,
+      on_approval:  products.filter((p) => matchesTab(getStatus(p), 'on_approval')  && visible(p)).length,
+    }
+  }, [products, filterField, filterValue, filterField2, filterValue2]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Selection helpers ────────────────────────────────────────────────────
   function toggleOne(id: string) {
@@ -467,6 +481,7 @@ export default function ItemStatusClient({
     setSelectedCustomer(null)
     setActionNotes('')
     setApplyError('')
+    setPieceCount('1')
   }
 
   // ─── Download PDF ─────────────────────────────────────────────────────────
@@ -475,7 +490,7 @@ export default function ItemStatusClient({
     const selectedProducts = products.filter((p) => selected.has(p.id))
     setPdfGenerating(true)
     try {
-      await generateItemPDF(selectedProducts, pendingAction, customerQuery.trim(), actionNotes.trim(), visibleCustomParams, builtinVisibility)
+      await generateItemPDF(selectedProducts, pendingAction, customerQuery.trim(), actionNotes.trim(), Math.max(1, parseInt(pieceCount) || 1), visibleCustomParams, builtinVisibility)
     } finally {
       setPdfGenerating(false)
     }
@@ -492,6 +507,8 @@ export default function ItemStatusClient({
     setApplyError('')
 
     try {
+      const pieces = Math.max(1, parseInt(pieceCount) || 1)
+
       let customerId: string | null = null
       if (pendingAction === 'on_approval' || pendingAction === 'out_of_stock') {
         if (selectedCustomer && selectedCustomer.name.toLowerCase() === customerQuery.toLowerCase()) {
@@ -508,26 +525,50 @@ export default function ItemStatusClient({
         }
       }
 
-      const newQty = pendingAction === 'in_stock' ? 1 : pendingAction === 'on_approval' ? -1 : 0
       const ids = Array.from(selected)
 
-      const { error: updateErr } = await supabase
-        .from('products')
-        .update({ stock_qty: newQty })
-        .in('id', ids)
+      // Compute per-item new qty and status
+      const updates = ids.map((pid) => {
+        const p = products.find((q) => q.id === pid)!
+        const currentQty = p.stock_qty ?? 0
+        let newQty: number
+        let newStatus: StockStatus
+        if (pendingAction === 'out_of_stock') {
+          newQty    = Math.max(0, currentQty - pieces)
+          newStatus = newQty === 0 ? 'out_of_stock' : 'in_stock'
+        } else if (pendingAction === 'on_approval') {
+          newQty    = Math.max(0, currentQty - pieces)
+          newStatus = newQty === 0 ? 'on_approval' : 'partial_approval'
+        } else {
+          newQty    = currentQty + pieces
+          newStatus = 'in_stock'
+        }
+        return { id: pid, stock_qty: newQty, item_status: newStatus }
+      })
+
+      const results = await Promise.all(
+        updates.map((u) =>
+          supabase.from('products').update({ stock_qty: u.stock_qty, item_status: u.item_status }).eq('id', u.id)
+        )
+      )
+      const updateErr = results.find((r) => r.error)?.error
       if (updateErr) throw updateErr
 
-      const historyRows = ids.map((pid) => ({
-        product_id:  pid,
+      const historyRows = updates.map((u) => ({
+        product_id:  u.id,
         customer_id: customerId,
         status:      pendingAction,
         notes:       actionNotes.trim() || null,
+        qty_changed: pendingAction === 'in_stock' ? pieces : -pieces,
       }))
       const { error: histErr } = await supabase.from('item_history').insert(historyRows)
       if (histErr) throw histErr
 
       setProducts((prev) =>
-        prev.map((p) => selected.has(p.id) ? { ...p, stock_qty: newQty } : p)
+        prev.map((p) => {
+          const u = updates.find((x) => x.id === p.id)
+          return u ? { ...p, stock_qty: u.stock_qty, item_status: u.item_status } : p
+        })
       )
       setSelected(new Set())
       resetActionForm()
@@ -544,7 +585,7 @@ export default function ItemStatusClient({
     setHistoryLoading(true)
     const { data } = await supabase
       .from('item_history')
-      .select('id, status, notes, created_at, customers(name)')
+      .select('id, status, notes, created_at, qty_changed, customers(name)')
       .eq('product_id', productId)
       .order('created_at', { ascending: false })
       .limit(30)
@@ -706,9 +747,14 @@ export default function ItemStatusClient({
                     <p className="text-xs text-gray-400 mt-0.5">{p.sku} · {p.categories?.name ?? '—'}</p>
                   </div>
 
-                  <span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded flex-shrink-0 ${STATUS_STYLES[status]}`}>
-                    {STATUS_LABELS[status]}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {(p.stock_qty ?? 0) > 0 && (
+                      <span className="text-[10px] text-gray-400 font-medium">{p.stock_qty}×</span>
+                    )}
+                    <span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded ${STATUS_STYLES[status]}`}>
+                      {STATUS_LABELS[status]}
+                    </span>
+                  </div>
 
                   <button
                     onClick={(e) => { e.stopPropagation(); openHistory(p.id) }}
@@ -820,6 +866,19 @@ export default function ItemStatusClient({
                   />
                 </div>
 
+                <div>
+                  <label className="text-xs tracking-widest uppercase text-gray-400 block mb-1">
+                    {pendingAction === 'out_of_stock' ? 'Pieces Sold' : 'Pieces Going on Approval'}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={pieceCount}
+                    onChange={(e) => setPieceCount(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-[#B8973A]"
+                  />
+                </div>
+
                 {/* PDF download button */}
                 <button
                   type="button"
@@ -836,9 +895,20 @@ export default function ItemStatusClient({
             )}
 
             {pendingAction === 'in_stock' && (
-              <p className="text-sm text-gray-500 mb-5">
-                These items will be marked as available in stock again.
-              </p>
+              <div className="mb-5">
+                <p className="text-sm text-gray-500 mb-3">Items will be marked as available in stock.</p>
+                <div>
+                  <label className="text-xs tracking-widest uppercase text-gray-400 block mb-1">Pieces Returned</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={pieceCount}
+                    onChange={(e) => setPieceCount(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-[#B8973A]"
+                    autoFocus
+                  />
+                </div>
+              </div>
             )}
 
             {applyError && <p className="text-red-500 text-xs mb-4">{applyError}</p>}
@@ -909,6 +979,11 @@ export default function ItemStatusClient({
                             </span>
                           )}
                         </div>
+                        {row.qty_changed != null && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {row.qty_changed > 0 ? `+${row.qty_changed}` : row.qty_changed} pcs
+                          </p>
+                        )}
                         {row.notes && <p className="text-xs text-gray-400 mt-0.5">{row.notes}</p>}
                         <p className="text-[10px] text-gray-300 mt-1">
                           {new Date(row.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
