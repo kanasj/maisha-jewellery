@@ -3,7 +3,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Karigar, OrderStatus, ORDER_STATUS_LABELS } from '@/lib/types'
-import { ImagePlus, X, Loader2, Plus, Check } from 'lucide-react'
+import { ImagePlus, Camera, X, Loader2, Plus, Check } from 'lucide-react'
 
 interface Props {
   karigars: Pick<Karigar, 'id' | 'name'>[]
@@ -15,6 +15,7 @@ export default function NewOrderClient({ karigars: initialKarigars }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
 
   const [karigarList, setKarigarList] = useState(initialKarigars)
 
@@ -186,16 +187,27 @@ export default function NewOrderClient({ karigars: initialKarigars }: Props) {
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="w-32 h-32 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-[#B8973A] hover:text-[#B8973A] transition-colors"
-            >
-              <ImagePlus size={22} />
-              <span className="text-xs">Upload photo</span>
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="w-32 h-32 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-[#B8973A] hover:text-[#B8973A] transition-colors"
+              >
+                <ImagePlus size={22} />
+                <span className="text-xs">Upload photo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraRef.current?.click()}
+                className="w-32 h-32 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-[#B8973A] hover:text-[#B8973A] transition-colors"
+              >
+                <Camera size={22} />
+                <span className="text-xs">Take photo</span>
+              </button>
+            </div>
           )}
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
         </div>
 
         {/* Karigars */}
