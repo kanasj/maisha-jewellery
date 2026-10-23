@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Order, OrderEvent, OrderEventItem, Karigar, OrderStatus,
+  Order, OrderEvent, OrderEventItem, OrderStatus,
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, MATERIAL_LABELS, MaterialType,
 } from '@/lib/types'
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-react'
@@ -13,7 +13,6 @@ import { cn } from '@/lib/utils'
 interface Props {
   order: Order
   events: OrderEvent[]
-  allKarigars: Pick<Karigar, 'id' | 'name'>[]
 }
 
 // ─── Material balance computation ─────────────────────────────────────────────
@@ -186,23 +185,19 @@ function EventRow({
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
-export default function OrderDetailClient({ order, events: initialEvents, allKarigars }: Props) {
+export default function OrderDetailClient({ order, events: initialEvents }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [events, setEvents] = useState<OrderEvent[]>(initialEvents)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
 
   const balance = computeBalance(events)
-  const assignedKarigarIds = (order.order_karigars ?? []).map(ok => ok.karigar_id)
 
   async function deleteEvent(id: string) {
     if (!confirm('Delete this event?')) return
-    setDeletingId(id)
     await supabase.from('order_events').delete().eq('id', id)
     setEvents(prev => prev.filter(e => e.id !== id))
-    setDeletingId(null)
   }
 
   function editEvent(event: OrderEvent) {

@@ -7,7 +7,7 @@ export const metadata = { title: 'Order Detail — Maisha Admin' }
 export default async function OrderDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
 
-  const [{ data: order }, { data: events }, { data: karigars }] = await Promise.all([
+  const [{ data: order }, { data: events }] = await Promise.all([
     supabase
       .from('orders')
       .select(`
@@ -24,11 +24,6 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       .select('*, order_event_items(*)')
       .eq('order_id', params.id)
       .order('created_at', { ascending: true }),
-    supabase
-      .from('karigars')
-      .select('id, name')
-      .eq('is_active', true)
-      .order('name'),
   ])
 
   if (!order) notFound()
@@ -37,7 +32,6 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     <OrderDetailClient
       order={order}
       events={events ?? []}
-      allKarigars={karigars ?? []}
     />
   )
 }

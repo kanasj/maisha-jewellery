@@ -44,7 +44,6 @@ export default function EventFormClient({ orderId, orderRef, existingEvent }: Pr
   const supabase = createClient()
 
   const isEdit = !!existingEvent
-  const isMaterial = !existingEvent || existingEvent.event_type === 'material_movement'
 
   const [eventType, setEventType] = useState<'material_movement' | 'note_added'>(
     existingEvent?.event_type === 'note_added' ? 'note_added' : 'material_movement'
