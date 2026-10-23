@@ -226,6 +226,7 @@ export default function SettingsClient({ current }: Props) {
       {/* Diamond Params Tab */}
       {tab === 'diamond' && <DiamondParamsTab />}
 
+
       {/* Save button — only for general/banners tabs */}
       <div className={`flex items-center gap-4 mt-8 ${tab === 'params' || tab === 'pricing' || tab === 'diamond' ? 'hidden' : ''}`}>
         <button

@@ -2,12 +2,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, Tag, Upload, LogOut, Settings, Menu, X, ToggleLeft } from 'lucide-react'
+import { LayoutDashboard, Package, Tag, Upload, LogOut, Settings, Menu, X, ToggleLeft, ClipboardList, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 const links = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
+  { href: '/admin/karigars', label: 'Karigars', icon: Users },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/item-status', label: 'Item Status', icon: ToggleLeft },
   { href: '/admin/categories', label: 'Categories', icon: Tag },
@@ -25,7 +27,7 @@ function NavLinks({ pathname, onNav }: { pathname: string; onNav?: () => void })
           onClick={onNav}
           className={cn(
             'flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-colors',
-            pathname === href
+            (href === '/admin' ? pathname === href : pathname.startsWith(href))
               ? 'bg-[#B8973A] text-white'
               : 'text-white/60 hover:text-white hover:bg-white/10'
           )}

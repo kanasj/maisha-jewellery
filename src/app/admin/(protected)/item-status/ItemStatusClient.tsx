@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, History, X, CheckSquare, Square, User, FileDown } from 'lucide-react'
+import { Loader2, History, X, CheckSquare, Square, User, FileDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import jsPDF from 'jspdf'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -390,6 +390,10 @@ export default function ItemStatusClient({
   const [pdfGenerating, setPdfGenerating] = useState(false)
   const customerInputRef = useRef<HTMLInputElement>(null)
 
+  // Preview popup
+  const [previewProduct, setPreviewProduct] = useState<ItemProduct | null>(null)
+  const [previewImageIdx, setPreviewImageIdx] = useState(0)
+
   // History
   const [historyProductId, setHistoryProductId] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoryRow[]>([])
@@ -719,17 +723,18 @@ export default function ItemStatusClient({
               return (
                 <div
                   key={p.id}
-                  onClick={() => toggleOne(p.id)}
+                  onClick={() => { setPreviewProduct(p); setPreviewImageIdx(0) }}
                   className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${
                     isSelected ? 'bg-amber-50' : 'hover:bg-gray-50'
                   }`}
                 >
-                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => toggleOne(p.id)}>
-                      {isSelected
-                        ? <CheckSquare size={18} className="text-[#B8973A]" />
-                        : <Square size={18} className="text-gray-300" />}
-                    </button>
+                  <div
+                    className="flex-shrink-0"
+                    onClick={(e) => { e.stopPropagation(); toggleOne(p.id) }}
+                  >
+                    {isSelected
+                      ? <CheckSquare size={18} className="text-[#B8973A]" />
+                      : <Square size={18} className="text-gray-300" />}
                   </div>
 
                   {p.images?.[0] ? (
@@ -938,6 +943,121 @@ export default function ItemStatusClient({
           </div>
         </div>
       )}
+
+      {/* ── Product preview popup ── */}
+      {previewProduct && (() => {
+        const p = previewProduct
+        const images = p.images ?? []
+        const status = getStatus(p)
+        const cf = p.custom_fields ?? {}
+        const isSelected = selected.has(p.id)
+
+        const specRows: { label: string; value: string }[] = []
+        if (p.categories?.name) specRows.push({ label: 'Category', value: p.categories.name })
+        if (cf['stone_category']) specRows.push({ label: 'Stone Category', value: String(cf['stone_category']) })
+        if (p.metal_type || p.metal_purity) specRows.push({ label: 'Metal', value: [p.metal_type, p.metal_purity].filter(Boolean).join(' ') })
+        if (p.gross_weight_g) specRows.push({ label: 'Gross Weight', value: `${p.gross_weight_g} g` })
+        if (cf['net_weight_gm']) specRows.push({ label: 'Net Weight', value: `${cf['net_weight_gm']} g` })
+        if (p.diamond_weight_ct) specRows.push({ label: 'Diamond Wt.', value: `${p.diamond_weight_ct} ct` })
+        if (cf['cvd_weight_ct']) specRows.push({ label: 'CVD Wt.', value: `${cf['cvd_weight_ct']} ct` })
+        if (cf['stone_weight_g']) specRows.push({ label: 'Stone Wt.', value: `${cf['stone_weight_g']} g` })
+        if (cf['polki_weight_g']) specRows.push({ label: 'Polki Wt.', value: `${cf['polki_weight_g']} g` })
+        if (p.price_inr) specRows.push({ label: 'Price', value: `₹${p.price_inr.toLocaleString('en-IN')}` })
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setPreviewProduct(null)} />
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
+
+              {/* Image area */}
+              <div className="relative bg-[#F0EBE3] aspect-square w-full">
+                {images.length > 0 ? (
+                  <Image
+                    src={images[previewImageIdx]}
+                    alt={p.name}
+                    fill
+                    className="object-contain"
+                    sizes="384px"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="font-cormorant text-[#B8973A] text-6xl">M</span>
+                  </div>
+                )}
+
+                {/* Image nav arrows */}
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setPreviewImageIdx(i => (i - 1 + images.length) % images.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 rounded-full flex items-center justify-center shadow hover:bg-white transition-colors"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      onClick={() => setPreviewImageIdx(i => (i + 1) % images.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 rounded-full flex items-center justify-center shadow hover:bg-white transition-colors"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                    <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                      {images.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setPreviewImageIdx(i)}
+                          className={`w-1.5 h-1.5 rounded-full transition-colors ${i === previewImageIdx ? 'bg-[#B8973A]' : 'bg-white/60'}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Close button */}
+                <button
+                  onClick={() => setPreviewProduct(null)}
+                  className="absolute top-2 right-2 w-7 h-7 bg-white/80 rounded-full flex items-center justify-center shadow hover:bg-white transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Details */}
+              <div className="px-5 py-4">
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <h3 className="font-cormorant text-lg font-semibold text-[#1A1714] leading-snug">{p.name}</h3>
+                  <span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded flex-shrink-0 mt-0.5 ${STATUS_STYLES[status]}`}>
+                    {STATUS_LABELS[status]}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mb-4">{p.sku}</p>
+
+                {specRows.length > 0 && (
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
+                    {specRows.map(row => (
+                      <div key={row.label}>
+                        <dt className="text-[10px] uppercase tracking-widest text-gray-400">{row.label}</dt>
+                        <dd className="text-sm text-[#1A1714] font-medium">{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+
+                {/* Select / deselect button */}
+                <button
+                  onClick={() => { toggleOne(p.id); setPreviewProduct(null) }}
+                  className={`w-full py-2.5 text-sm rounded-lg border transition-colors ${
+                    isSelected
+                      ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                      : 'bg-[#1A1714] border-[#1A1714] text-white hover:bg-[#2A2720]'
+                  }`}
+                >
+                  {isSelected ? 'Deselect this item' : 'Select this item'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── History drawer ── */}
       {historyProductId && (
