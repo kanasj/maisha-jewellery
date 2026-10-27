@@ -3,6 +3,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Karigar, OrderStatus, ORDER_STATUS_LABELS } from '@/lib/types'
+import { compressImage } from '@/lib/compressImage'
 import { ImagePlus, Camera, X, Loader2, Plus, Check } from 'lucide-react'
 
 interface Props {
@@ -74,10 +75,14 @@ export default function NewOrderClient({ karigars: initialKarigars }: Props) {
       // 1. Upload photo if provided
       let photoUrl: string | null = null
       if (photoFile) {
+        const compressed = await compressImage(photoFile)
         const fd = new FormData()
-        fd.append('file', photoFile)
+        fd.append('file', compressed)
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
-        if (!res.ok) throw new Error('Photo upload failed')
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err?.error ?? 'Photo upload failed')
+        }
         const json = await res.json()
         photoUrl = json.url
       }
